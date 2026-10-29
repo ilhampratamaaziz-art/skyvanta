@@ -1203,26 +1203,22 @@ function selectSearchResult(adm4) {
   changeLocation(adm4);
 }
 
-// Video Controls & Dimmer (Kalkulasi Perkalian Diperbaiki)
+// Video Controls & Dimmer (CSS background version)
 function setupVideoControls() {
-  const video = document.getElementById("bg-video");
+  const bgAnim = document.getElementById("bg-animated");
   const playBtn = document.getElementById("btn-toggle-video");
   const playLabel = document.getElementById("video-btn-label");
   const dimmerSlider = document.getElementById("video-dimmer-slider");
   const dimmerLabel = document.getElementById("label-dimmer-val");
   const dimmerLayer = document.getElementById("video-dimmer-layer");
 
-  if (playBtn && video) {
+  // Play/pause toggle now pauses CSS animation
+  if (playBtn && bgAnim) {
     playBtn.addEventListener("click", () => {
-      if (video.paused) {
-        video.play();
-        playLabel.textContent = "Jeda Video";
-        STATE.videoPlaying = true;
-      } else {
-        video.pause();
-        playLabel.textContent = "Putar Video";
-        STATE.videoPlaying = false;
-      }
+      const isPaused = bgAnim.style.animationPlayState === "paused";
+      bgAnim.style.animationPlayState = isPaused ? "running" : "paused";
+      if (playLabel) playLabel.textContent = isPaused ? "Jeda Animasi" : "Putar Animasi";
+      STATE.videoPlaying = !isPaused;
     });
   }
 
@@ -1296,16 +1292,16 @@ function updateAtmosphericEffects(data) {
     atmosphere.setMode(current.weather_desc);
   }
 
-  const video = document.getElementById("bg-video");
-  if (video) {
+  // Update bg animation tint based on weather
+  const bgAnim = document.getElementById("bg-animated");
+  if (bgAnim) {
     const desc = (current.weather_desc || "").toLowerCase();
     if (desc.includes("hujan")) {
-      video.style.filter =
-        "brightness(0.75) contrast(1.15) saturate(0.85) hue-rotate(10deg)";
+      bgAnim.style.filter = "brightness(0.75) hue-rotate(10deg)";
     } else if (desc.includes("cerah")) {
-      video.style.filter = "brightness(1.05) contrast(1.05) saturate(1.15)";
+      bgAnim.style.filter = "brightness(1.05) saturate(1.2)";
     } else {
-      video.style.filter = "brightness(0.88) contrast(1.0) saturate(0.95)";
+      bgAnim.style.filter = "brightness(0.9)";
     }
   }
 }
