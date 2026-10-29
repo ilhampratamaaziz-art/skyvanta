@@ -1,0 +1,1158 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>SKYVANTA - Portal Prakiraan Cuaca Indonesia Resmi BMKG</title>
+
+    <meta
+      name="description"
+      content="SKYVANTA - Platform prakiraan cuaca seluruh wilayah Indonesia berbasis data resmi BMKG dengan antarmuka Glassmorphism HD, live background video, grafik dinamis, dan peta interaktif."
+    />
+    <meta name="theme-color" content="#030712" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                cyan: "#06b6d4",
+                blue: "#3b82f6",
+                emerald: "#10b981",
+                amber: "#f59e0b",
+                dark: "#030712",
+              },
+            },
+          },
+        },
+      };
+    </script>
+
+    <!-- Google Fonts: Outfit & Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Chart.js 4.4 for High-Performance Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css?v=2.2" />
+  </head>
+
+  <body class="antialiased selection:bg-cyan-500 selection:text-white">
+    <!-- HD Live Video Background -->
+    <div id="video-background-container">
+      <video id="bg-video" autoplay loop muted playsinline preload="auto">
+        <source src="bg-lake.mp4" type="video/mp4" />
+        Browser tidak mendukung pemutar video.
+      </video>
+      <div id="video-dimmer-layer"></div>
+    </div>
+
+    <!-- Dynamic Weather Atmosphere Layer (Rain, Fog, Particles) -->
+    <canvas id="atmosphere-canvas"></canvas>
+
+    <!-- Global Loading Spinner Overlay -->
+    <div
+      id="global-loader"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md hidden transition-all duration-300"
+    >
+      <div
+        class="glass-panel p-6 flex flex-col items-center space-y-4 max-w-xs text-center border-cyan-400/30"
+      >
+        <div class="relative w-14 h-14">
+          <div
+            class="absolute inset-0 rounded-full border-4 border-cyan-500/20 animate-ping"
+          ></div>
+          <div
+            class="w-14 h-14 rounded-full border-4 border-transparent border-t-cyan-400 border-r-blue-500 animate-spin"
+          ></div>
+        </div>
+        <div>
+          <p class="text-sm font-bold text-white tracking-wide">
+            Sinkronisasi BMKG
+          </p>
+          <p class="text-xs text-slate-300 mt-1">
+            Mengambil data meteorologi resmi...
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Global Toast Alert -->
+    <div
+      id="toast-notification"
+      class="fixed bottom-6 right-6 z-50 glass-panel px-5 py-3 text-xs font-medium text-white shadow-2xl transition-all duration-300 translate-y-20 opacity-0 pointer-events-none flex items-center space-x-2 border-cyan-400/40"
+    >
+      <svg
+        class="w-4 h-4 text-cyan-400 flex-shrink-0"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="16" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+      </svg>
+      <span id="toast-text">Notifikasi</span>
+    </div>
+
+    <!-- Main Container -->
+    <div
+      class="relative z-10 min-h-screen flex flex-col justify-between max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-5"
+    >
+      <!-- Top Floating Header Bar -->
+      <header
+        class="glass-panel px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 border-white/15"
+      >
+        <!-- Brand & Live Badge -->
+        <div class="flex items-center space-x-3.5">
+          <div
+            class="w-10 h-10 rounded-2xl bg-slate-900/80 border border-cyan-400/40 flex items-center justify-center shadow-lg shadow-cyan-500/20 text-cyan-300 relative overflow-hidden group"
+          >
+            <div class="absolute inset-0 bg-gradient-to-tr from-cyan-500/20 via-sky-500/10 to-transparent"></div>
+            <!-- Iconic SKYVANTA Emblem: Celestial Horizon Ring + Polaris + Dynamic Aero Wing -->
+            <svg class="w-6 h-6 relative z-10" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="16" cy="16" r="13" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.4" />
+              <path d="M7 19C10.5 13.5 15.5 10 21.5 10C24.5 10 26 11.5 25 14C23.8 17 19 18 15 19C10.5 20.1 7.5 21.8 7 24C6.5 26.2 9 27 13 27C17.5 27 21.5 25 25 22" stroke="url(#skyvanta-grad)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+              <path d="M16 4.5L17.2 8L20.8 9.2L17.2 10.4L16 14L14.8 10.4L11.2 9.2L14.8 8L16 4.5Z" fill="#38bdf8" />
+              <defs>
+                <linearGradient id="skyvanta-grad" x1="6" y1="10" x2="26" y2="27" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#38bdf8" />
+                  <stop offset="1" stop-color="#34d399" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2.5">
+              <h1 class="brand-title">
+                SKYVANTA
+              </h1>
+              <span
+                class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+              >
+                <span
+                  class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1"
+                ></span>
+                BMKG LIVE
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-300/80 hidden sm:block tracking-wide font-normal">
+              Portal Prakiraan Cuaca Seluruh Wilayah Indonesia
+            </p>
+          </div>
+        </div>
+
+        <!-- Live Earthquake Ticker Button -->
+        <button
+          onclick="openGempaModal()"
+          class="glass-pill px-3 py-1.5 flex items-center space-x-2 text-xs text-rose-300 hover:text-white border-rose-500/30 hover:border-rose-500/60 transition-all group"
+        >
+          <span class="flex h-2 w-2 relative">
+            <span
+              class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"
+            ></span>
+            <span
+              class="relative inline-flex rounded-full h-2 w-2 bg-rose-500"
+            ></span>
+          </span>
+          <span
+            id="gempa-ticker-text"
+            class="truncate max-w-[180px] sm:max-w-[300px] font-medium text-[11px]"
+          >
+            BMKG Gempa: Memuat sensor...
+          </span>
+          <span
+            class="text-[10px] bg-rose-500/20 px-1.5 py-0.5 rounded text-rose-300 font-bold group-hover:bg-rose-500 group-hover:text-white"
+            >Detail</span
+          >
+        </button>
+
+        <!-- Control Toolbar Pills -->
+        <div class="flex items-center space-x-2 flex-wrap">
+          <!-- Video Ambient Audio Toggle -->
+          <button
+            id="btn-toggle-audio"
+            class="glass-pill px-3 py-1.5 text-xs font-semibold text-slate-200 flex items-center space-x-1.5"
+          >
+            <svg
+              class="w-3.5 h-3.5 text-cyan-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+            <span id="audio-btn-label">Suara Alam: Nonaktif</span>
+          </button>
+
+          <!-- Audio Mode Selector -->
+          <select
+            id="audio-mode-select"
+            class="glass-pill px-2.5 py-1.5 text-xs font-medium text-slate-200 bg-transparent outline-none cursor-pointer"
+          >
+            <option value="breeze" class="bg-slate-900 text-white">
+              Angin Pegunungan
+            </option>
+            <option value="rain" class="bg-slate-900 text-white">
+              Hujan Rintik
+            </option>
+            <option value="lake" class="bg-slate-900 text-white">
+              Ombak Danau
+            </option>
+          </select>
+
+          <!-- Temperature Unit Toggle -->
+          <button
+            id="btn-unit-toggle"
+            onclick="toggleTemperatureUnit()"
+            class="glass-pill px-2.5 py-1.5 text-xs font-bold text-cyan-300 hover:text-white"
+            title="Ubah Satuan Suhu"
+          >
+            °C / °F
+          </button>
+
+          <!-- Video Play/Pause -->
+          <button
+            id="btn-toggle-video"
+            class="glass-pill px-2.5 py-1.5 text-xs font-semibold text-slate-200 hidden sm:inline-flex"
+            title="Jeda atau Putar Video"
+          >
+            <span id="video-btn-label">Jeda Video</span>
+          </button>
+
+          <!-- Particle FX Toggle -->
+          <button
+            id="btn-toggle-atmosphere"
+            onclick="toggleAtmosphereFX()"
+            class="glass-pill px-2.5 py-1.5 text-xs font-semibold text-slate-200 active hidden md:inline-flex"
+            title="Efek Cuaca Dinamis"
+          >
+            Partikel: Aktif
+          </button>
+
+          <!-- Print / Export Report -->
+          <button
+            onclick="printWeatherReport()"
+            class="glass-pill px-3 py-1.5 text-xs font-semibold text-slate-200 flex items-center space-x-1 hover:text-cyan-300"
+            title="Cetak Ringkasan Laporan Cuaca"
+          >
+            <svg
+              class="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path
+                d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+              ></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span class="hidden sm:inline">Cetak</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Search Bar & Indonesia Quick Region Navigation -->
+      <section class="space-y-2.5">
+        <!-- Diperbaiki: Diberi z-50 agar dropdown melayang di atas semua komponen -->
+        <div
+          class="glass-panel p-2.5 sm:p-3 flex items-center gap-2 relative z-50"
+        >
+          <svg
+            class="w-4 h-4 text-slate-400 pl-1 flex-shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            id="city-search-input"
+            placeholder="Cari Kota, Kabupaten, Provinsi, atau Kode ADM4 Kemendagri... (Tekan '/' untuk fokus)"
+            class="bg-transparent border-none outline-none text-sm text-white placeholder-slate-400 w-full font-medium"
+            autocomplete="off"
+          />
+
+          <!-- GPS Button -->
+          <button
+            onclick="detectUserLocation()"
+            class="glass-pill px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:text-white flex items-center space-x-1.5 whitespace-nowrap bg-cyan-500/10 hover:bg-cyan-500/25 border-cyan-500/30"
+          >
+            <svg
+              class="w-3.5 h-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <span class="hidden sm:inline">Lokasi Saya</span>
+          </button>
+
+          <!-- Search Auto-complete Dropdown -->
+          <div
+            id="search-dropdown"
+            class="absolute left-0 right-0 top-full mt-2 glass-panel p-1 z-50 hidden max-h-72 overflow-y-auto border-cyan-400/30"
+          ></div>
+        </div>
+
+        <!-- Quick Location Chips -->
+        <div
+          class="flex items-center space-x-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar"
+          id="quick-pills-container"
+        ></div>
+      </section>
+
+      <!-- Main Weather Hero Section -->
+      <section class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+        <!-- Current Weather Hero Card -->
+        <div
+          class="lg:col-span-8 glass-panel p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden border-white/20"
+        >
+          <!-- Ambient Glow -->
+          <div
+            class="absolute -right-16 -top-16 w-60 h-60 rounded-full bg-cyan-500/15 blur-3xl pointer-events-none"
+          ></div>
+          <div
+            class="absolute -left-16 -bottom-16 w-60 h-60 rounded-full bg-blue-600/15 blur-3xl pointer-events-none"
+          ></div>
+
+          <div class="relative z-10 space-y-5">
+            <!-- Top Row: Location & Status & Clock -->
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div class="flex items-center space-x-2">
+                  <span
+                    class="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                    id="hero-status-pill"
+                  >
+                    <span
+                      class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1 inline-block"
+                    ></span>
+                    Terhubung BMKG
+                  </span>
+                  <span class="text-xs text-slate-300" id="hero-date-badge"
+                    >Kamis, 29 Oktober 2026</span
+                  >
+                </div>
+                <h2
+                  id="hero-city-title"
+                  class="text-xl sm:text-2xl md:text-3xl font-normal text-slate-100 tracking-[0.06em] mt-1.5 select-none"
+                  style="font-family: 'Plus Jakarta Sans', sans-serif; text-shadow: 0 2px 14px rgba(6, 182, 212, 0.2);"
+                >
+                  Kota Adm. Jakarta Pusat
+                </h2>
+                <p
+                  id="hero-province-subtitle"
+                  class="text-xs sm:text-sm text-cyan-200/75 font-normal tracking-wide mt-1"
+                >
+                  Gambir, DKI Jakarta • Kode ADM4: 31.71.01.1001
+                </p>
+              </div>
+
+              <div class="glass-pill px-3.5 py-1.5 text-right">
+                <span class="text-[10px] text-slate-400 font-medium block"
+                  >Waktu Lokal</span
+                >
+                <span
+                  id="hero-time-badge"
+                  class="text-sm sm:text-base font-bold text-cyan-300 font-mono"
+                  >14:00 WIB</span
+                >
+              </div>
+            </div>
+
+            <!-- Middle Row: Temperature, Condition, and SVG Icon -->
+            <div
+              class="flex flex-col sm:flex-row items-center justify-between gap-4 py-2 bg-white/[0.03] rounded-2xl p-4 border border-white/10"
+            >
+              <div class="flex items-center space-x-4">
+                <div class="flex items-baseline">
+                  <span
+                    id="hero-temp"
+                    class="text-5xl sm:text-7xl font-black tracking-tight text-white font-heading"
+                  >
+                    30
+                  </span>
+                  <span
+                    id="hero-temp-unit"
+                    class="text-2xl sm:text-4xl font-bold text-cyan-400 ml-1 font-heading"
+                  >
+                    °C
+                  </span>
+                </div>
+
+                <div class="space-y-0.5 pl-3 border-l border-white/15">
+                  <p
+                    id="hero-feels-like"
+                    class="text-sm font-semibold text-slate-200"
+                  >
+                    Terasa seperti 36°C
+                  </p>
+                  <p
+                    id="hero-temp-range"
+                    class="text-xs text-slate-400 font-medium"
+                  >
+                    Min 25° / Maks 31°
+                  </p>
+                  <div class="flex items-center space-x-1.5 pt-0.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span class="text-[11px] text-emerald-300 font-semibold"
+                      >Data Valid BMKG</span
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center space-x-3 text-right">
+                <img
+                  id="hero-weather-icon"
+                  src="https://api-apps.bmkg.go.id/storage/icon/cuaca/berawan-am.svg"
+                  alt="Kondisi Cuaca BMKG"
+                  class="w-16 h-16 sm:w-20 sm:h-20 drop-shadow-xl animate-pulse-glow"
+                />
+                <div>
+                  <h3
+                    id="hero-weather-desc"
+                    class="text-lg sm:text-xl font-bold text-white"
+                  >
+                    Berawan
+                  </h3>
+                  <p
+                    id="hero-weather-desc-en"
+                    class="text-[11px] text-slate-400 uppercase tracking-wider font-semibold"
+                  >
+                    Mostly Cloudy
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Integrated Core Metrics Ribbon -->
+            <div
+              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 pt-1"
+            >
+              <!-- Kelembapan -->
+              <div class="glass-subcard p-2.5">
+                <div
+                  class="flex items-center justify-between text-slate-400 text-[11px]"
+                >
+                  <span>Kelembapan</span>
+                  <svg
+                    class="w-3.5 h-3.5 text-cyan-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                  </svg>
+                </div>
+                <span
+                  id="metric-humidity"
+                  class="text-base sm:text-lg font-bold text-white block mt-0.5"
+                  >71%</span
+                >
+                <span
+                  id="metric-dew-point"
+                  class="text-[10px] text-slate-400 block truncate"
+                  >Titik embun 24°</span
+                >
+              </div>
+
+              <!-- Kecepatan Angin -->
+              <div class="glass-subcard p-2.5">
+                <div
+                  class="flex items-center justify-between text-slate-400 text-[11px]"
+                >
+                  <span>Angin</span>
+                  <svg
+                    class="w-3.5 h-3.5 text-amber-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2"
+                    />
+                  </svg>
+                </div>
+                <span
+                  id="metric-wind-speed"
+                  class="text-base sm:text-lg font-bold text-white block mt-0.5"
+                  >4.6 km/j</span
+                >
+                <span
+                  id="metric-wind-knot"
+                  class="text-[10px] text-slate-400 block truncate"
+                  >2.5 kt • NW</span
+                >
+              </div>
+
+              <!-- Tutupan Awan -->
+              <div class="glass-subcard p-2.5">
+                <div
+                  class="flex items-center justify-between text-slate-400 text-[11px]"
+                >
+                  <span>Awan</span>
+                  <svg
+                    class="w-3.5 h-3.5 text-purple-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+                  </svg>
+                </div>
+                <span
+                  id="metric-clouds"
+                  class="text-base sm:text-lg font-bold text-white block mt-0.5"
+                  >93%</span
+                >
+                <span
+                  id="metric-clouds-status"
+                  class="text-[10px] text-slate-400 block truncate"
+                  >Berawan</span
+                >
+              </div>
+
+              <!-- Curah Hujan -->
+              <div class="glass-subcard p-2.5">
+                <div
+                  class="flex items-center justify-between text-slate-400 text-[11px]"
+                >
+                  <span>Presipitasi</span>
+                  <svg
+                    class="w-3.5 h-3.5 text-blue-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M16 13v8m-8-8v8m4-5v8M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"
+                    />
+                  </svg>
+                </div>
+                <span
+                  id="metric-precip"
+                  class="text-base sm:text-lg font-bold text-white block mt-0.5"
+                  >0.7 mm</span
+                >
+                <span
+                  id="metric-precip-status"
+                  class="text-[10px] text-slate-400 block truncate"
+                  >Sangat Ringan</span
+                >
+              </div>
+
+              <!-- Indeks UV -->
+              <div class="glass-subcard p-2.5">
+                <div
+                  class="flex items-center justify-between text-slate-400 text-[11px]"
+                >
+                  <span>Indeks UV</span>
+                  <svg
+                    class="w-3.5 h-3.5 text-amber-300"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <circle cx="12" cy="12" r="5" />
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="21" x2="12" y2="23" />
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                    <line x1="1" y1="12" x2="3" y2="12" />
+                    <line x1="21" y1="12" x2="23" y2="12" />
+                  </svg>
+                </div>
+                <span
+                  id="metric-uv"
+                  class="text-base sm:text-lg font-bold text-white block mt-0.5"
+                  >4.2</span
+                >
+                <span
+                  id="metric-uv-status"
+                  class="text-[10px] text-amber-400 font-semibold block truncate"
+                  >Sedang</span
+                >
+              </div>
+
+              <!-- Indeks Kenyamanan -->
+              <div class="glass-subcard p-2.5">
+                <div
+                  class="flex items-center justify-between text-slate-400 text-[11px]"
+                >
+                  <span>Kenyamanan</span>
+                  <svg
+                    class="w-3.5 h-3.5 text-emerald-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                  </svg>
+                </div>
+                <span
+                  id="metric-comfort"
+                  class="text-base sm:text-lg font-bold text-cyan-300 block mt-0.5 truncate"
+                  >Hangat</span
+                >
+                <span
+                  id="metric-comfort-desc"
+                  class="text-[10px] text-slate-400 block truncate"
+                  >Lembap tropis</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Card Footer -->
+          <div
+            class="pt-3 mt-4 border-t border-white/10 flex flex-wrap items-center justify-between text-[11px] text-slate-300 gap-2 relative z-10"
+          >
+            <div class="flex items-center space-x-1.5">
+              <svg
+                class="w-3.5 h-3.5 text-cyan-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>Sumber: BMKG Pusat Data Meteorologi Nasional</span>
+            </div>
+            <button
+              onclick="fetchWeatherData(STATE.currentAdm4)"
+              class="hover:text-cyan-300 font-semibold flex items-center space-x-1"
+            >
+              <svg
+                class="w-3 h-3"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path
+                  d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
+                />
+              </svg>
+              <span>Segarkan</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Column: 3-Day Outlook & Display Settings -->
+        <div class="lg:col-span-4 flex flex-col gap-4 justify-between">
+          <!-- 3-Day Outlook Summary -->
+          <div class="glass-panel p-5 flex-1 flex flex-col justify-between">
+            <div
+              class="flex items-center justify-between mb-3 border-b border-white/10 pb-2"
+            >
+              <h4
+                class="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-1.5"
+              >
+                <svg
+                  class="w-3.5 h-3.5 text-cyan-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <span>Rangkuman 3 Hari</span>
+              </h4>
+              <span class="text-[10px] text-cyan-400 font-semibold"
+                >Prakiraan BMKG</span
+              >
+            </div>
+
+            <div id="daily-cards-container" class="space-y-2.5">
+              <!-- Daily Summary Cards inserted here -->
+            </div>
+          </div>
+
+          <!-- Video & Audio Display Controls -->
+          <div class="glass-panel p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4
+                class="text-xs font-bold text-white uppercase tracking-wider flex items-center space-x-1.5"
+              >
+                <svg
+                  class="w-3.5 h-3.5 text-cyan-400"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <line x1="4" y1="21" x2="4" y2="14" />
+                  <line x1="4" y1="10" x2="4" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12" y2="3" />
+                  <line x1="20" y1="21" x2="20" y2="16" />
+                  <line x1="20" y1="12" x2="20" y2="3" />
+                  <line x1="1" y1="14" x2="7" y2="14" />
+                  <line x1="9" y1="8" x2="15" y2="8" />
+                  <line x1="17" y1="16" x2="23" y2="16" />
+                </svg>
+                <span>Kontrol Tampilan HD</span>
+              </h4>
+              <span class="text-[10px] text-cyan-300 font-mono"
+                >4K Ultra HD</span
+              >
+            </div>
+
+            <div class="space-y-2">
+              <div>
+                <div
+                  class="flex justify-between text-[11px] text-slate-300 mb-1"
+                >
+                  <span>Kecerahan Video Latar</span>
+                  <span
+                    id="label-dimmer-val"
+                    class="text-cyan-300 font-mono text-[10px]"
+                    >35%</span
+                  >
+                </div>
+                <input
+                  type="range"
+                  id="video-dimmer-slider"
+                  min="0.15"
+                  max="0.80"
+                  step="0.05"
+                  value="0.35"
+                  class="w-full h-1 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+              </div>
+
+              <div>
+                <div
+                  class="flex justify-between text-[11px] text-slate-300 mb-1"
+                >
+                  <span>Volume Suara Alam</span>
+                  <span
+                    id="label-volume-val"
+                    class="text-cyan-300 font-mono text-[10px]"
+                    >35%</span
+                  >
+                </div>
+                <input
+                  type="range"
+                  id="audio-volume-slider"
+                  min="0.0"
+                  max="1.0"
+                  step="0.05"
+                  value="0.35"
+                  class="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Hourly Forecast Timeline -->
+      <section class="space-y-2.5">
+        <div class="flex items-center justify-between">
+          <h3
+            class="text-sm font-bold text-white font-heading flex items-center space-x-1.5 uppercase tracking-wider"
+          >
+            <svg
+              class="w-4 h-4 text-cyan-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Prakiraan Cuaca 72 Jam (Interval 3 Jam)</span>
+          </h3>
+          <span class="text-xs text-slate-400"
+            >Gulir horizontal untuk melihat jadwal lengkap</span
+          >
+        </div>
+
+        <div
+          id="hourly-carousel"
+          class="flex items-stretch space-x-3 overflow-x-auto pb-2 pt-1 no-scrollbar"
+        >
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- Dynamic Multi-Mode Interactive Graphs -->
+      <section class="glass-panel p-5 sm:p-6 space-y-4">
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3"
+        >
+          <div>
+            <h3
+              class="text-base sm:text-lg font-bold text-white font-heading flex items-center space-x-2"
+            >
+              <svg
+                class="w-4 h-4 text-cyan-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              <span>Grafik Analisis Cuaca Multi-Dimensi</span>
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">
+              Visualisasi kurva parameter atmosfer BMKG hingga 72 jam ke depan
+            </p>
+          </div>
+
+          <div
+            class="flex items-center space-x-1.5 p-1 glass-pill bg-slate-900/60"
+          >
+            <button
+              id="tab-btn-temp"
+              onclick="switchChartTab('temp')"
+              class="glass-pill active px-3 py-1 text-xs font-semibold"
+            >
+              Suhu & Embun
+            </button>
+            <button
+              id="tab-btn-rain"
+              onclick="switchChartTab('rain')"
+              class="glass-pill px-3 py-1 text-xs font-semibold"
+            >
+              Hujan & Awan
+            </button>
+            <button
+              id="tab-btn-wind"
+              onclick="switchChartTab('wind')"
+              class="glass-pill px-3 py-1 text-xs font-semibold"
+            >
+              Angin & Kelembapan
+            </button>
+          </div>
+        </div>
+
+        <div class="relative w-full h-64 sm:h-72">
+          <canvas id="weather-chart"></canvas>
+        </div>
+      </section>
+
+      <!-- PETA CUACA INTERAKTIF INDONESIA -->
+      <section class="glass-panel p-5 sm:p-6 space-y-4">
+        <div
+          class="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3"
+        >
+          <div>
+            <h3
+              class="text-base sm:text-lg font-bold text-white font-heading flex items-center space-x-2"
+            >
+              <svg
+                class="w-4 h-4 text-cyan-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" />
+                <line x1="8" y1="2" x2="8" y2="18" />
+                <line x1="16" y1="6" x2="16" y2="22" />
+              </svg>
+              <span>Peta Cuaca Interaktif Wilayah Republik Indonesia</span>
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">
+              38 Ibukota Provinsi Resmi Republik Indonesia dengan pemantauan cuaca BMKG akurat
+            </p>
+          </div>
+          <div
+            class="flex items-center space-x-2 text-[11px] text-cyan-300 font-mono"
+          >
+            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+            <span>Radar Meteorologi Aktif (38 Provinsi)</span>
+          </div>
+        </div>
+
+        <!-- Filter Wilayah Pulau -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-3 mb-1 text-xs scrollbar-none" id="map-region-filter">
+          <button class="map-filter-btn active" data-region="all" onclick="filterMapRegion('all')">🇮🇩 Seluruh Indonesia (38)</button>
+          <button class="map-filter-btn" data-region="Sumatera" onclick="filterMapRegion('Sumatera')">Sumatera (10)</button>
+          <button class="map-filter-btn" data-region="Jawa" onclick="filterMapRegion('Jawa')">Jawa (6)</button>
+          <button class="map-filter-btn" data-region="Bali & Nusa Tenggara" onclick="filterMapRegion('Bali & Nusa Tenggara')">Bali & Nusra (3)</button>
+          <button class="map-filter-btn" data-region="Kalimantan" onclick="filterMapRegion('Kalimantan')">Kalimantan (5)</button>
+          <button class="map-filter-btn" data-region="Sulawesi" onclick="filterMapRegion('Sulawesi')">Sulawesi (6)</button>
+          <button class="map-filter-btn" data-region="Maluku" onclick="filterMapRegion('Maluku')">Maluku (2)</button>
+          <button class="map-filter-btn" data-region="Papua" onclick="filterMapRegion('Papua')">Papua (6)</button>
+        </div>
+
+        <div
+          class="w-full relative rounded-2xl overflow-hidden border border-white/15 bg-slate-950/35 backdrop-blur-md p-3 sm:p-5 shadow-inner"
+        >
+          <!-- Map Canvas Wrapper (Radar Scan Strictly Confined Within Map Only) -->
+          <div
+            class="relative w-full overflow-hidden rounded-xl border border-cyan-500/20 bg-gradient-to-b from-slate-950/60 to-slate-900/40 backdrop-blur-sm"
+            style="aspect-ratio: 2 / 1; min-height: 220px; max-height: 380px"
+          >
+            <!-- Radar scan line: STRICTLY confined within map, stops right at the bottom edge of map! -->
+            <div class="radar-scan-line"></div>
+
+            <img
+              src="peta-indonesia.png?v=2.2"
+              alt="Peta Indonesia"
+              class="w-full h-full object-fill select-none pointer-events-none drop-shadow-[0_0_20px_rgba(56,189,248,0.3)]"
+              draggable="false"
+            />
+
+            <div
+              id="map-station-pins"
+              class="absolute inset-0 pointer-events-none"
+            ></div>
+
+            <div
+              id="map-hover-tooltip"
+              class="absolute pointer-events-none glass-panel px-3 py-2 text-xs font-semibold text-white border-cyan-400/50 shadow-2xl transition-all duration-150 hidden z-50 rounded-xl"
+              style="transform: translate(-50%, -115%); white-space: nowrap"
+            >
+              <div class="flex items-center gap-2">
+                <span id="map-tooltip-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <p id="map-tooltip-title" class="font-bold text-cyan-300">Kota</p>
+                <span id="map-tooltip-temp" class="text-xs font-black px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-200">--°C</span>
+              </div>
+              <p
+                id="map-tooltip-desc"
+                class="text-[11px] text-slate-300 font-normal mt-0.5"
+              >
+                Provinsi
+              </p>
+              <p id="map-tooltip-weather" class="text-[10px] text-emerald-400 font-medium">
+                Prakiraan BMKG
+              </p>
+            </div>
+          </div>
+
+          <div
+            class="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between text-[11px] text-slate-400"
+          >
+            <span
+              >Stasiun BMKG Tersebar: Banda Aceh (95°BT) hingga Merauke
+              (141°BT)</span
+            >
+            <span class="text-cyan-400 font-mono"
+              >Klik titik pin atau kartu ibukota untuk memuat cuaca</span
+            >
+          </div>
+
+          <!-- 38 Provincial Capitals Quick List -->
+          <div class="mt-4 pt-3 border-t border-white/10">
+            <div class="flex items-center justify-between mb-2.5">
+              <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]"></span>
+                38 Ibukota Provinsi & Suhu Resmi BMKG Saat Ini
+              </span>
+              <span id="map-station-count" class="text-[11px] text-cyan-300 font-mono">38 Provinsi Aktif</span>
+            </div>
+            <div id="capitals-quick-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-52 overflow-y-auto pr-1 text-xs scrollbar-thin">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Earthquake Detail Modal -->
+      <div
+        id="gempa-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-all duration-300"
+      >
+        <div
+          class="glass-panel max-w-lg w-full p-5 sm:p-7 space-y-4 border-rose-500/40 relative shadow-2xl"
+        >
+          <div
+            class="flex items-center justify-between border-b border-white/10 pb-3"
+          >
+            <div class="flex items-center space-x-2">
+              <span
+                class="w-3 h-3 rounded-full bg-rose-500 animate-pulse"
+              ></span>
+              <div>
+                <h4 class="text-base font-bold text-white">
+                  Informasi Gempa Bumi Terkini BMKG
+                </h4>
+                <p class="text-[11px] text-slate-400">
+                  Sistem Peringatan Dini Geofisika BMKG
+                </p>
+              </div>
+            </div>
+            <button
+              onclick="closeGempaModal()"
+              class="glass-pill w-7 h-7 flex items-center justify-center text-slate-400 hover:text-white text-xs"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 text-center">
+            <div
+              class="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/30"
+            >
+              <span class="text-[11px] text-rose-300 block font-medium"
+                >Magnitudo</span
+              >
+              <span
+                id="modal-gempa-mag"
+                class="text-2xl sm:text-3xl font-black text-rose-400 mt-0.5 block"
+                >M 6.0</span
+              >
+            </div>
+            <div
+              class="p-3.5 rounded-xl bg-slate-800/40 border border-white/10"
+            >
+              <span class="text-[11px] text-slate-400 block font-medium"
+                >Kedalaman</span
+              >
+              <span
+                id="modal-gempa-depth"
+                class="text-xl sm:text-2xl font-bold text-white mt-0.5 block"
+                >120 km</span
+              >
+            </div>
+          </div>
+
+          <div class="space-y-2 text-xs text-slate-200">
+            <div class="p-2.5 rounded-lg bg-white/5 flex justify-between">
+              <span class="text-slate-400">Pusat Gempa:</span>
+              <span
+                id="modal-gempa-location"
+                class="font-semibold text-right max-w-[65%]"
+                >Pusat gempa di darat...</span
+              >
+            </div>
+            <div class="p-2.5 rounded-lg bg-white/5 flex justify-between">
+              <span class="text-slate-400">Waktu Gempa:</span>
+              <span id="modal-gempa-time" class="font-semibold"
+                >29 Okt 2026 • 10:26 WIB</span
+              >
+            </div>
+            <div class="p-2.5 rounded-lg bg-white/5 flex justify-between">
+              <span class="text-slate-400">Potensi Tsunami:</span>
+              <span
+                id="modal-gempa-potensi"
+                class="font-semibold text-emerald-400"
+                >Tidak berpotensi tsunami</span
+              >
+            </div>
+            <div class="p-2.5 rounded-lg bg-white/5 flex justify-between">
+              <span class="text-slate-400">Skala Dirasakan (MMI):</span>
+              <span
+                id="modal-gempa-dirasakan"
+                class="font-semibold text-right max-w-[65%]"
+                >III Boven Digoel, II Jayapura</span
+              >
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <span class="text-[11px] font-semibold text-slate-400"
+              >Peta Tingkat Guncangan (Shakemap BMKG):</span
+            >
+            <img
+              id="modal-gempa-shakemap"
+              src=""
+              alt="Shakemap BMKG"
+              class="w-full rounded-lg border border-white/10 max-h-40 object-cover shadow-inner"
+            />
+          </div>
+
+          <button
+            onclick="closeGempaModal()"
+            class="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 font-bold text-xs text-white transition-colors shadow-lg shadow-cyan-600/30"
+          >
+            Tutup Informasi
+          </button>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <footer
+        class="glass-panel p-5 sm:p-6 space-y-3 text-center border-white/15"
+      >
+        <div
+          class="flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-slate-300"
+        >
+          <span class="flex items-center space-x-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            <span>BMKG Open Data API Compliant</span>
+          </span>
+          <span>•</span>
+          <span>Kepmendagri No. 100.1.1-6117</span>
+          <span>•</span>
+          <span>Single Page Application Full Stack</span>
+          <span>•</span>
+          <span>Resolusi HD Glassmorphism</span>
+        </div>
+
+        <p class="text-xs text-slate-400 max-w-2xl mx-auto leading-relaxed">
+          Aplikasi ini menggunakan sumber data resmi yang diterbitkan oleh
+          <strong>Badan Meteorologi, Klimatologi, dan Geofisika (BMKG)</strong>
+          Republik Indonesia. Seluruh prakiraan cuaca, parameter angin,
+          kelembapan, suhu, dan data kegempaan diambil secara real-time dan
+          valid tanpa manipulasi data tiruan demi integritas sains dan
+          kompetisi.
+        </p>
+
+        <div
+          class="pt-3 border-t border-white/10 text-[11px] text-slate-400 flex flex-wrap justify-between items-center gap-2"
+        >
+          <span>© 2026 SKYVANTA • Portal Meteorologi Indonesia Resmi BMKG</span>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Custom JavaScript with Cache Busting -->
+    <script src="app.js?v=2.2"></script>
+  </body>
+</html>

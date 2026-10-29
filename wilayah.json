@@ -1,0 +1,713 @@
+[
+  {
+    "name": "Jakarta Pusat (Gambir)",
+    "kotkab": "Kota Adm. Jakarta Pusat",
+    "provinsi": "DKI Jakarta",
+    "adm4": "31.71.01.1001",
+    "lat": -6.1764,
+    "lon": 106.8267,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Jakarta Selatan (Kebayoran Baru)",
+    "kotkab": "Kota Adm. Jakarta Selatan",
+    "provinsi": "DKI Jakarta",
+    "adm4": "31.74.01.1001",
+    "lat": -6.2415,
+    "lon": 106.7979,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Jakarta Barat (Grogol)",
+    "kotkab": "Kota Adm. Jakarta Barat",
+    "provinsi": "DKI Jakarta",
+    "adm4": "31.73.01.1001",
+    "lat": -6.1674,
+    "lon": 106.7884,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Jakarta Timur (Matraman)",
+    "kotkab": "Kota Adm. Jakarta Timur",
+    "provinsi": "DKI Jakarta",
+    "adm4": "31.75.01.1001",
+    "lat": -6.2088,
+    "lon": 106.8676,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Jakarta Utara (Koja)",
+    "kotkab": "Kota Adm. Jakarta Utara",
+    "provinsi": "DKI Jakarta",
+    "adm4": "31.72.01.1001",
+    "lat": -6.1264,
+    "lon": 106.9056,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kepulauan Seribu (P. Panggang)",
+    "kotkab": "Kab. Adm. Kepulauan Seribu",
+    "provinsi": "DKI Jakarta",
+    "adm4": "31.01.01.1001",
+    "lat": -5.5786,
+    "lon": 106.6033,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Bandung",
+    "kotkab": "Kota Bandung",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.73.01.1001",
+    "lat": -6.9175,
+    "lon": 107.6191,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Bogor",
+    "kotkab": "Kota Bogor",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.71.01.1001",
+    "lat": -6.5971,
+    "lon": 106.806,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Bekasi",
+    "kotkab": "Kota Bekasi",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.75.01.1001",
+    "lat": -6.2383,
+    "lon": 106.9756,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Depok",
+    "kotkab": "Kota Depok",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.76.03.1001",
+    "lat": -6.4243,
+    "lon": 106.7812,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Cimahi",
+    "kotkab": "Kota Cimahi",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.77.01.1001",
+    "lat": -6.8722,
+    "lon": 107.5422,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Cirebon",
+    "kotkab": "Kota Cirebon",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.74.01.1001",
+    "lat": -6.732,
+    "lon": 108.5523,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Sukabumi",
+    "kotkab": "Kota Sukabumi",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.72.01.1001",
+    "lat": -6.9277,
+    "lon": 106.93,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Tasikmalaya",
+    "kotkab": "Kota Tasikmalaya",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.78.01.1001",
+    "lat": -7.3274,
+    "lon": 108.2207,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Banjar",
+    "kotkab": "Kota Banjar",
+    "provinsi": "Jawa Barat",
+    "adm4": "32.79.01.1001",
+    "lat": -7.3712,
+    "lon": 108.5342,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Serang",
+    "kotkab": "Kota Serang",
+    "provinsi": "Banten",
+    "adm4": "36.73.01.1001",
+    "lat": -6.1104,
+    "lon": 106.164,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Tangerang",
+    "kotkab": "Kota Tangerang",
+    "provinsi": "Banten",
+    "adm4": "36.71.01.1001",
+    "lat": -6.1783,
+    "lon": 106.6319,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Tangerang Selatan",
+    "kotkab": "Kota Tangerang Selatan",
+    "provinsi": "Banten",
+    "adm4": "36.74.01.1001",
+    "lat": -6.2886,
+    "lon": 106.7179,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Cilegon",
+    "kotkab": "Kota Cilegon",
+    "provinsi": "Banten",
+    "adm4": "36.72.01.1001",
+    "lat": -6.017,
+    "lon": 106.0538,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Semarang",
+    "kotkab": "Kota Semarang",
+    "provinsi": "Jawa Tengah",
+    "adm4": "33.74.01.1001",
+    "lat": -6.9667,
+    "lon": 110.4167,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Surakarta (Solo)",
+    "kotkab": "Kota Surakarta",
+    "provinsi": "Jawa Tengah",
+    "adm4": "33.72.01.1001",
+    "lat": -7.5755,
+    "lon": 110.8243,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Salatiga",
+    "kotkab": "Kota Salatiga",
+    "provinsi": "Jawa Tengah",
+    "adm4": "33.73.01.1001",
+    "lat": -7.3305,
+    "lon": 110.5084,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Tegal",
+    "kotkab": "Kota Tegal",
+    "provinsi": "Jawa Tengah",
+    "adm4": "33.76.01.1001",
+    "lat": -6.8694,
+    "lon": 109.1402,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Purwokerto (Kab. Banyumas)",
+    "kotkab": "Kab. Banyumas",
+    "provinsi": "Jawa Tengah",
+    "adm4": "33.02.01.2001",
+    "lat": -7.4243,
+    "lon": 109.2302,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Yogyakarta",
+    "kotkab": "Kota Yogyakarta",
+    "provinsi": "D.I. Yogyakarta",
+    "adm4": "34.71.01.1001",
+    "lat": -7.7956,
+    "lon": 110.3695,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kab. Sleman",
+    "kotkab": "Kab. Sleman",
+    "provinsi": "D.I. Yogyakarta",
+    "adm4": "34.04.01.2001",
+    "lat": -7.7156,
+    "lon": 110.3556,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kab. Bantul",
+    "kotkab": "Kab. Bantul",
+    "provinsi": "D.I. Yogyakarta",
+    "adm4": "34.02.01.2001",
+    "lat": -7.8879,
+    "lon": 110.3283,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Surabaya",
+    "kotkab": "Kota Surabaya",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.78.01.1001",
+    "lat": -7.2575,
+    "lon": 112.7521,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Malang",
+    "kotkab": "Kota Malang",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.73.01.1001",
+    "lat": -7.9797,
+    "lon": 112.6304,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Batu",
+    "kotkab": "Kota Batu",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.79.01.1001",
+    "lat": -7.8712,
+    "lon": 112.527,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Kediri",
+    "kotkab": "Kota Kediri",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.71.01.1001",
+    "lat": -7.848,
+    "lon": 112.0178,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Madiun",
+    "kotkab": "Kota Madiun",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.77.01.1001",
+    "lat": -7.6298,
+    "lon": 111.5239,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Blitar",
+    "kotkab": "Kota Blitar",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.72.01.1001",
+    "lat": -8.0954,
+    "lon": 112.1609,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Pasuruan",
+    "kotkab": "Kota Pasuruan",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.75.01.1001",
+    "lat": -7.6453,
+    "lon": 112.9075,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Probolinggo",
+    "kotkab": "Kota Probolinggo",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.74.01.1001",
+    "lat": -7.7543,
+    "lon": 113.2159,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kab. Banyuwangi",
+    "kotkab": "Kab. Banyuwangi",
+    "provinsi": "Jawa Timur",
+    "adm4": "35.10.01.2001",
+    "lat": -8.2192,
+    "lon": 114.3692,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Denpasar",
+    "kotkab": "Kota Denpasar",
+    "provinsi": "Bali",
+    "adm4": "51.71.01.1001",
+    "lat": -8.6705,
+    "lon": 115.2126,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Mataram",
+    "kotkab": "Kota Mataram",
+    "provinsi": "Nusa Tenggara Barat",
+    "adm4": "52.71.02.1001",
+    "lat": -8.5833,
+    "lon": 116.1167,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Bima",
+    "kotkab": "Kota Bima",
+    "provinsi": "Nusa Tenggara Barat",
+    "adm4": "52.72.01.1001",
+    "lat": -8.4539,
+    "lon": 118.7275,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Kupang",
+    "kotkab": "Kota Kupang",
+    "provinsi": "Nusa Tenggara Timur",
+    "adm4": "53.71.01.1001",
+    "lat": -10.1772,
+    "lon": 123.607,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Labuan Bajo (Manggarai Barat)",
+    "kotkab": "Kab. Manggarai Barat",
+    "provinsi": "Nusa Tenggara Timur",
+    "adm4": "53.15.01.2001",
+    "lat": -8.4964,
+    "lon": 119.8877,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Banda Aceh",
+    "kotkab": "Kota Banda Aceh",
+    "provinsi": "Aceh",
+    "adm4": "11.71.01.2001",
+    "lat": 5.5483,
+    "lon": 95.3238,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Medan",
+    "kotkab": "Kota Medan",
+    "provinsi": "Sumatera Utara",
+    "adm4": "12.71.01.1001",
+    "lat": 3.5952,
+    "lon": 98.6722,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Pematang Siantar",
+    "kotkab": "Kota Pematang Siantar",
+    "provinsi": "Sumatera Utara",
+    "adm4": "12.72.01.1001",
+    "lat": 2.959,
+    "lon": 99.0687,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Binjai",
+    "kotkab": "Kota Binjai",
+    "provinsi": "Sumatera Utara",
+    "adm4": "12.75.01.1001",
+    "lat": 3.6001,
+    "lon": 98.4854,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Padang",
+    "kotkab": "Kota Padang",
+    "provinsi": "Sumatera Barat",
+    "adm4": "13.71.01.1001",
+    "lat": -0.9471,
+    "lon": 100.4172,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Bukittinggi",
+    "kotkab": "Kota Bukittinggi",
+    "provinsi": "Sumatera Barat",
+    "adm4": "13.75.01.1001",
+    "lat": -0.3056,
+    "lon": 100.3692,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Pekanbaru",
+    "kotkab": "Kota Pekanbaru",
+    "provinsi": "Riau",
+    "adm4": "14.71.01.1002",
+    "lat": 0.5071,
+    "lon": 101.4478,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Batam",
+    "kotkab": "Kota Batam",
+    "provinsi": "Kepulauan Riau",
+    "adm4": "21.71.01.1002",
+    "lat": 1.1301,
+    "lon": 104.0529,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Tanjung Pinang",
+    "kotkab": "Kota Tanjung Pinang",
+    "provinsi": "Kepulauan Riau",
+    "adm4": "21.72.01.1001",
+    "lat": 0.9167,
+    "lon": 104.45,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Jambi",
+    "kotkab": "Kota Jambi",
+    "provinsi": "Jambi",
+    "adm4": "15.71.01.1001",
+    "lat": -1.6101,
+    "lon": 103.6131,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Palembang",
+    "kotkab": "Kota Palembang",
+    "provinsi": "Sumatera Selatan",
+    "adm4": "16.71.01.1001",
+    "lat": -2.9909,
+    "lon": 104.7565,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Pangkal Pinang",
+    "kotkab": "Kota Pangkal Pinang",
+    "provinsi": "Kepulauan Bangka Belitung",
+    "adm4": "19.71.02.1001",
+    "lat": -2.1161,
+    "lon": 106.1167,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Bengkulu",
+    "kotkab": "Kota Bengkulu",
+    "provinsi": "Bengkulu",
+    "adm4": "17.71.01.1001",
+    "lat": -3.8004,
+    "lon": 102.2655,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Bandar Lampung",
+    "kotkab": "Kota Bandar Lampung",
+    "provinsi": "Lampung",
+    "adm4": "18.71.01.1003",
+    "lat": -5.3834,
+    "lon": 105.2635,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Metro",
+    "kotkab": "Kota Metro",
+    "provinsi": "Lampung",
+    "adm4": "18.72.01.1001",
+    "lat": -5.1136,
+    "lon": 105.3067,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Pontianak",
+    "kotkab": "Kota Pontianak",
+    "provinsi": "Kalimantan Barat",
+    "adm4": "61.71.01.1002",
+    "lat": -0.0263,
+    "lon": 109.3425,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Palangka Raya",
+    "kotkab": "Kota Palangka Raya",
+    "provinsi": "Kalimantan Tengah",
+    "adm4": "62.71.01.1001",
+    "lat": -2.1997,
+    "lon": 113.9503,
+    "timezone": "WIB"
+  },
+  {
+    "name": "Kota Banjarmasin",
+    "kotkab": "Kota Banjarmasin",
+    "provinsi": "Kalimantan Selatan",
+    "adm4": "63.71.01.1001",
+    "lat": -3.3167,
+    "lon": 114.5901,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Balikpapan",
+    "kotkab": "Kota Balikpapan",
+    "provinsi": "Kalimantan Timur",
+    "adm4": "64.71.01.1001",
+    "lat": -1.2379,
+    "lon": 116.8529,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Samarinda",
+    "kotkab": "Kota Samarinda",
+    "provinsi": "Kalimantan Timur",
+    "adm4": "64.72.01.1001",
+    "lat": -0.5022,
+    "lon": 117.1536,
+    "timezone": "WITA"
+  },
+  {
+    "name": "IKN Nusantara (Sepaku)",
+    "kotkab": "Kab. Penajam Paser Utara",
+    "provinsi": "Kalimantan Timur",
+    "adm4": "64.71.01.1001",
+    "lat": -0.9634,
+    "lon": 116.7118,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Tarakan",
+    "kotkab": "Kota Tarakan",
+    "provinsi": "Kalimantan Utara",
+    "adm4": "65.71.01.1001",
+    "lat": 3.3255,
+    "lon": 117.5846,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Makassar",
+    "kotkab": "Kota Makassar",
+    "provinsi": "Sulawesi Selatan",
+    "adm4": "73.71.01.1001",
+    "lat": -5.1477,
+    "lon": 119.4327,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Manado",
+    "kotkab": "Kota Manado",
+    "provinsi": "Sulawesi Utara",
+    "adm4": "71.71.01.1001",
+    "lat": 1.4748,
+    "lon": 124.8428,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Palu",
+    "kotkab": "Kota Palu",
+    "provinsi": "Sulawesi Tengah",
+    "adm4": "72.71.02.1002",
+    "lat": -0.9003,
+    "lon": 119.8779,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Kendari",
+    "kotkab": "Kota Kendari",
+    "provinsi": "Sulawesi Tenggara",
+    "adm4": "74.71.03.1001",
+    "lat": -3.9985,
+    "lon": 122.5126,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Gorontalo",
+    "kotkab": "Kota Gorontalo",
+    "provinsi": "Gorontalo",
+    "adm4": "75.71.01.1001",
+    "lat": 0.5435,
+    "lon": 123.0568,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kab. Mamuju",
+    "kotkab": "Kab. Mamuju",
+    "provinsi": "Sulawesi Barat",
+    "adm4": "76.02.01.1002",
+    "lat": -2.7492,
+    "lon": 118.9673,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Kota Ambon",
+    "kotkab": "Kota Ambon",
+    "provinsi": "Maluku",
+    "adm4": "81.71.01.2001",
+    "lat": -3.6547,
+    "lon": 128.1906,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Kota Ternate",
+    "kotkab": "Kota Ternate",
+    "provinsi": "Maluku Utara",
+    "adm4": "82.71.01.1001",
+    "lat": 0.7614,
+    "lon": 127.3197,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Kota Jayapura",
+    "kotkab": "Kota Jayapura",
+    "provinsi": "Papua",
+    "adm4": "91.71.01.1001",
+    "lat": -2.5916,
+    "lon": 140.669,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Tanjung Selor",
+    "kotkab": "Kab. Bulungan",
+    "provinsi": "Kalimantan Utara",
+    "adm4": "65.01.01.1001",
+    "lat": 2.8143,
+    "lon": 117.355,
+    "timezone": "WITA"
+  },
+  {
+    "name": "Sofifi (Tidore Kepulauan)",
+    "kotkab": "Kota Tidore Kepulauan",
+    "provinsi": "Maluku Utara",
+    "adm4": "82.72.01.1001",
+    "lat": 0.6562,
+    "lon": 127.4393,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Kota Sorong",
+    "kotkab": "Kota Sorong",
+    "provinsi": "Papua Barat Daya",
+    "adm4": "96.71.01.1001",
+    "lat": -0.8764,
+    "lon": 131.2833,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Manokwari",
+    "kotkab": "Kab. Manokwari",
+    "provinsi": "Papua Barat",
+    "adm4": "92.02.12.1001",
+    "lat": -0.8535,
+    "lon": 134.062,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Nabire",
+    "kotkab": "Kab. Nabire",
+    "provinsi": "Papua Tengah",
+    "adm4": "94.01.01.1001",
+    "lat": -3.3919,
+    "lon": 135.4863,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Wamena",
+    "kotkab": "Kab. Jayawijaya",
+    "provinsi": "Papua Pegunungan",
+    "adm4": "95.01.01.1001",
+    "lat": -4.1018,
+    "lon": 138.9458,
+    "timezone": "WIT"
+  },
+  {
+    "name": "Merauke",
+    "kotkab": "Kab. Merauke",
+    "provinsi": "Papua Selatan",
+    "adm4": "93.01.01.2001",
+    "lat": -8.5701,
+    "lon": 140.5794,
+    "timezone": "WIT"
+  }
+]

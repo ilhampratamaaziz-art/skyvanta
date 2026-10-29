@@ -1,0 +1,464 @@
+/* SKYVANTA - Ultra HD Glassmorphism Styling (Alpine Lake Harmonized) */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Harmonized Alpine Glacier & Lake Palette */
+  --glass-bg: rgba(6, 24, 38, 0.32);
+  --glass-card: linear-gradient(135deg, rgba(8, 28, 44, 0.36) 0%, rgba(5, 18, 30, 0.28) 100%);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-border-hover: rgba(56, 189, 248, 0.42);
+  --glass-shine: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.35), inset 0 0 24px 0 rgba(6, 182, 212, 0.06);
+  --accent-cyan: #38bdf8;
+  --accent-teal: #2dd4bf;
+  --accent-blue: #60a5fa;
+  --accent-amber: #fbbf24;
+  --accent-emerald: #34d399;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #f8fafc;
+  background-color: #020617;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Elegant Solid Brand Logo */
+.brand-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: #ffffff;
+  text-transform: uppercase;
+  user-select: none;
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.2);
+  line-height: 1.2;
+}
+@media (max-width: 640px) {
+  .brand-title {
+    font-size: 0.98rem;
+    letter-spacing: 0.18em;
+  }
+}
+
+/* Background Video Styling */
+#video-background-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#bg-video {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  min-width: 100%;
+  min-height: 100%;
+  width: auto;
+  height: auto;
+  transform: translate(-50%, -50%);
+  object-fit: cover;
+  transition: filter 0.8s ease;
+}
+
+/* Ambient Lake Vignette Layer (Transparent & Luminous) */
+#video-dimmer-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 25%, rgba(4, 18, 30, 0.18) 0%, rgba(2, 10, 18, 0.52) 100%);
+  transition: background 0.4s ease;
+  pointer-events: none;
+}
+
+/* Dynamic Weather Atmospheric Canvas (Rain, Fog, Glare) */
+#atmosphere-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -5;
+  pointer-events: none;
+}
+
+/* Alpine Frosted Glass Classes */
+.glass-panel {
+  background: var(--glass-card);
+  backdrop-filter: blur(28px) saturate(170%) brightness(1.05);
+  -webkit-backdrop-filter: blur(28px) saturate(170%) brightness(1.05);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 16px 36px -8px rgba(2, 12, 22, 0.55), var(--glass-shine);
+  border-radius: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel:hover {
+  border-color: var(--glass-border-hover);
+  box-shadow: 0 22px 48px -10px rgba(2, 12, 22, 0.7), inset 0 1px 2px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Translucent Pill Controls */
+.glass-pill {
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.25);
+  border-radius: 9999px;
+  transition: all 0.25s ease;
+}
+
+.glass-pill:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(56, 189, 248, 0.5);
+  transform: translateY(-1px);
+}
+
+.glass-pill.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(14, 116, 144, 0.45));
+  border-color: rgba(56, 189, 248, 0.75);
+  color: #38bdf8;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+}
+
+/* Translucent Sub-card (Inner metric chips) */
+.glass-subcard {
+  background: rgba(4, 20, 32, 0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.glass-subcard:hover {
+  background: rgba(6, 28, 44, 0.42);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+/* Vector Map Styling */
+.island-path {
+  cursor: default;
+  transition: all 0.3s ease;
+}
+
+.island-path:hover {
+  fill: #0284c7;
+  stroke: #38bdf8;
+  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.8));
+}
+
+.radar-scan-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 140px;
+  background: linear-gradient(90deg, transparent 0%, rgba(6, 182, 212, 0.08) 70%, rgba(56, 189, 248, 0.35) 100%);
+  border-right: 1.5px solid rgba(56, 189, 248, 0.8);
+  box-shadow: 4px 0 24px rgba(56, 189, 248, 0.4);
+  pointer-events: none;
+  z-index: 10;
+  animation: radarSweep 8s linear infinite;
+}
+
+@keyframes radarSweep {
+  0% { left: -140px; }
+  100% { left: 100%; }
+}
+
+.map-station-circle {
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.map-station-circle:hover {
+  transform-origin: center;
+  transform: scale(1.4);
+  filter: drop-shadow(0 0 8px #38bdf8);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(4, 20, 32, 0.3);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.88;
+    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.45));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 22px rgba(56, 189, 248, 0.85));
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-float {
+  animation: floatSlow 4s infinite ease-in-out;
+}
+
+/* ============================================================
+   PNG IMAGE MAP - City Weather Pin Styles
+   ============================================================ */
+
+/* Each city pin is absolutely positioned over the PNG map image */
+.map-city-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  transition: transform 0.2s ease, z-index 0s;
+}
+.map-city-pin:hover {
+  transform: translate(-50%, -50%) scale(1.18);
+  z-index: 20;
+}
+.map-city-pin.active {
+  transform: translate(-50%, -50%) scale(1.22);
+  z-index: 25;
+}
+
+/* Glowing dot indicator */
+.map-pin-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #34d399;
+  border: 1.5px solid rgba(2, 10, 20, 0.85);
+  box-shadow: 0 0 6px 2px rgba(52, 211, 153, 0.6);
+  transition: background 0.25s, box-shadow 0.25s;
+  flex-shrink: 0;
+}
+.map-pin-dot.active {
+  background: #38bdf8;
+  box-shadow: 0 0 10px 4px rgba(56, 189, 248, 0.8), 0 0 0 3px rgba(56, 189, 248, 0.25);
+  animation: pinPulse 1.4s infinite;
+}
+@keyframes pinPulse {
+  0%, 100% { box-shadow: 0 0 10px 4px rgba(56, 189, 248, 0.8), 0 0 0 3px rgba(56, 189, 248, 0.25); }
+  50%       { box-shadow: 0 0 16px 8px rgba(56, 189, 248, 0.5), 0 0 0 6px rgba(56, 189, 248, 0.15); }
+}
+
+/* City label pill: name + temperature */
+.map-pin-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 3px;
+  padding: 2px 6px 3px;
+  border-radius: 6px;
+  background: rgba(2, 12, 25, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  min-width: 44px;
+  text-align: center;
+  line-height: 1.2;
+  pointer-events: none;
+}
+.map-city-pin.active .map-pin-label {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(2, 20, 40, 0.82);
+}
+.map-pin-city {
+  font-size: 9px;
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.map-city-pin.active .map-pin-city {
+  color: #38bdf8;
+}
+.map-pin-temp {
+  font-size: 11px;
+  font-weight: 800;
+  color: #f0fdf4;
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: -0.02em;
+}
+.map-city-pin.active .map-pin-temp {
+  color: #bfdbfe;
+}
+
+/* Label Orientations to prevent overlap */
+.map-city-pin.label-top {
+  flex-direction: column-reverse;
+}
+.map-city-pin.label-top .map-pin-label {
+  margin-top: 0;
+  margin-bottom: 3px;
+}
+
+.map-city-pin.label-bottom {
+  flex-direction: column;
+}
+.map-city-pin.label-bottom .map-pin-label {
+  margin-top: 3px;
+}
+
+.map-city-pin.label-left {
+  flex-direction: row-reverse;
+}
+.map-city-pin.label-left .map-pin-label {
+  margin-top: 0;
+  margin-right: 4px;
+}
+
+.map-city-pin.label-right {
+  flex-direction: row;
+}
+.map-city-pin.label-right .map-pin-label {
+  margin-top: 0;
+  margin-left: 4px;
+}
+
+/* Dimmed pin when region filter is active */
+.map-city-pin.dimmed {
+  opacity: 0.22;
+  filter: grayscale(0.8);
+  pointer-events: none;
+}
+.map-city-pin.highlighted {
+  opacity: 1 !important;
+  z-index: 18;
+}
+
+/* Map Island Region Filter Button */
+.map-filter-btn {
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-size: 11px;
+}
+.map-filter-btn:hover {
+  background: rgba(6, 182, 212, 0.2);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #e2e8f0;
+}
+.map-filter-btn.active {
+  background: rgba(6, 182, 212, 0.25);
+  border-color: #22d3ee;
+  color: #38bdf8;
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+}
+
+/* Capital City Quick Cards */
+.capital-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.capital-card:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(56, 189, 248, 0.4);
+  transform: translateY(-1px);
+}
+.capital-card.active {
+  border-color: #38bdf8;
+  background: rgba(14, 116, 144, 0.3);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+}
+.capital-card-name {
+  font-weight: 600;
+  color: #f1f5f9;
+  font-size: 11px;
+  line-height: 1.2;
+}
+.capital-card-prov {
+  font-size: 9px;
+  color: #94a3b8;
+  line-height: 1.1;
+}
+.capital-card-temp {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  color: #38bdf8;
+  font-size: 12px;
+  margin-left: 6px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Print Styling for Weather Report */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  #video-background-container, #atmosphere-canvas, .no-print, header, .radar-scan-line {
+    display: none !important;
+  }
+  .glass-panel {
+    background: white !important;
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    color: black !important;
+  }
+}
