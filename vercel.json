@@ -3,34 +3,29 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
-    }
-  ],
-  "headers": [
-    {
-      "source": "/bg-lake.mp4",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
-        { "key": "Accept-Ranges", "value": "bytes" }
-      ]
+      "use": "@vercel/node"
     },
     {
-      "source": "/(.*\\.js|.*\\.css|.*\\.png|.*\\.svg|.*\\.ico)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=3600" }
-      ]
-    },
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=300, stale-while-revalidate=60" }
-      ]
+      "src": "public/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server.js"
+    },
+    {
+      "src": "/wilayah.json",
+      "dest": "server.js"
+    },
+    {
+      "src": "/(.*\\.(js|css|png|svg|ico|mp4|webp|jpg|jpeg|gif|woff2|woff|ttf))",
+      "dest": "public/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=86400, stale-while-revalidate=3600"
+      }
+    },
     {
       "src": "/(.*)",
       "dest": "server.js"
