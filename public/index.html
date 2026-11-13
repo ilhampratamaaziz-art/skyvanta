@@ -84,6 +84,20 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="style.css?v=5.0" />
     <link rel="stylesheet" href="aurora-redesign.css?v=5.0" />
+    <style>
+      .siaga-accordion > summary {
+        list-style: none;
+      }
+      .siaga-accordion > summary::-webkit-details-marker {
+        display: none;
+      }
+      .siaga-accordion-indicator::before {
+        content: "+";
+      }
+      .siaga-accordion[open] > summary .siaga-accordion-indicator::before {
+        content: "\2212";
+      }
+    </style>
   </head>
 
   <body class="antialiased">
@@ -2879,19 +2893,20 @@
 
               <div class="space-y-2.5">
                 <details
-                  class="group rounded-xl bg-white/80 border border-slate-200 p-3.5"
+                  class="siaga-accordion group rounded-xl bg-white/80 border border-slate-200 p-3.5"
                   open
                 >
                   <summary
-                    class="cursor-pointer font-bold text-xs sm:text-sm text-slate-900 flex items-center justify-between gap-2"
+                    class="cursor-pointer font-bold text-xs sm:text-sm text-slate-900 flex items-center justify-between gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-sky-500 focus-visible:outline-offset-2"
                   >
                     <span
                       >1. Cara Membaca Prakiraan Cuaca (Suhu Terasa,
                       Probabilitas, Curah Hujan)</span
                     >
-                    <span class="text-sky-700 text-xs font-mono flex-shrink-0"
-                      >+ / -</span
-                    >
+                    <span
+                      class="siaga-accordion-indicator w-6 h-6 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-mono font-bold inline-flex items-center justify-center flex-shrink-0"
+                      aria-hidden="true"
+                    ></span>
                   </summary>
                   <div
                     class="mt-2.5 pt-2.5 border-t border-slate-200/80 space-y-2 text-xs text-slate-600 leading-relaxed"
@@ -2927,18 +2942,19 @@
                 </details>
 
                 <details
-                  class="group rounded-xl bg-white/80 border border-slate-200 p-3.5"
+                  class="siaga-accordion group rounded-xl bg-white/80 border border-slate-200 p-3.5"
                 >
                   <summary
-                    class="cursor-pointer font-bold text-xs sm:text-sm text-slate-900 flex items-center justify-between gap-2"
+                    class="cursor-pointer font-bold text-xs sm:text-sm text-slate-900 flex items-center justify-between gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-sky-500 focus-visible:outline-offset-2"
                   >
                     <span
                       >2. Panduan Singkat Saat Cuaca Ekstrem &amp; Gempa
                       (Sebelum, Saat, Sesudah)</span
                     >
-                    <span class="text-sky-700 text-xs font-mono flex-shrink-0"
-                      >+ / -</span
-                    >
+                    <span
+                      class="siaga-accordion-indicator w-6 h-6 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-mono font-bold inline-flex items-center justify-center flex-shrink-0"
+                      aria-hidden="true"
+                    ></span>
                   </summary>
                   <div
                     class="mt-2.5 pt-2.5 border-t border-slate-200/80 space-y-2.5 text-xs text-slate-600 leading-relaxed"
@@ -2995,17 +3011,18 @@
                 </details>
 
                 <details
-                  class="group rounded-xl bg-white/80 border border-slate-200 p-3.5"
+                  class="siaga-accordion group rounded-xl bg-white/80 border border-slate-200 p-3.5"
                 >
                   <summary
-                    class="cursor-pointer font-bold text-xs sm:text-sm text-slate-900 flex items-center justify-between gap-2"
+                    class="cursor-pointer font-bold text-xs sm:text-sm text-slate-900 flex items-center justify-between gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-sky-500 focus-visible:outline-offset-2"
                   >
                     <span
                       >3. Cara Membaca Magnitudo, Kedalaman, dan Skala MMI</span
                     >
-                    <span class="text-sky-700 text-xs font-mono flex-shrink-0"
-                      >+ / -</span
-                    >
+                    <span
+                      class="siaga-accordion-indicator w-6 h-6 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-mono font-bold inline-flex items-center justify-center flex-shrink-0"
+                      aria-hidden="true"
+                    ></span>
                   </summary>
                   <div
                     class="mt-2.5 pt-2.5 border-t border-slate-200/80 space-y-2 text-xs text-slate-600 leading-relaxed"
