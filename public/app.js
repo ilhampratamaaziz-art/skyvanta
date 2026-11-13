@@ -1340,6 +1340,113 @@ function renderRainfallUnavailableState(locName) {
   }
 }
 
+function renderAeroAISummaryCard(data, isUnavailable = false) {
+  const bodyEl = document.getElementById("aeroai-summary-body");
+  const tipEl = document.getElementById("aeroai-summary-tip");
+  const locEl = document.getElementById("aeroai-summary-loc");
+  if (!bodyEl) return;
+
+  const loc = STATE.activeLocation || {};
+  const locName = loc.name || loc.kotkab || "Wilayah";
+  if (locEl) locEl.textContent = locName;
+
+  const isEn = typeof window.getLang === "function" && window.getLang() === "en";
+
+  if (isUnavailable || !data || !data.current || data.isUnavailable) {
+    bodyEl.innerHTML = `<p class="text-slate-500 font-medium">${escapeHtml(
+      isEn
+        ? `BMKG forecast data for ${locName} is unavailable to compose a summary.`
+        : `Data prakiraan BMKG untuk ${locName} belum tersedia untuk menyusun ringkasan.`
+    )}</p>`;
+    if (tipEl) tipEl.classList.add("hidden");
+    return;
+  }
+
+  const cur = data.current;
+  const forecast = Array.isArray(data.forecast) ? data.forecast : [];
+  const next24h = forecast.slice(0, 8);
+  const unit = STATE.unit;
+  const tempNow = formatTemp(cur.t);
+  const feelsNow = formatTemp(cur.feelsLike ?? cur.t);
+  const minVal = formatTemp(cur.minTempToday ?? cur.t);
+  const maxVal = formatTemp(cur.maxTempToday ?? cur.t);
+  const desc = _tw(cur.weather_desc || "Berawan");
+  const hu = Number(cur.hu ?? 0);
+  const curWs = Number(cur.ws ?? 0);
+  const curTp = Number(cur.tp ?? 0);
+
+  let maxTp24 = curTp;
+  let maxWs24 = curWs;
+  next24h.forEach((slot) => {
+    const tp = Number(slot.tp || 0);
+    const ws = Number(slot.ws || 0);
+    if (tp > maxTp24) maxTp24 = tp;
+    if (ws > maxWs24) maxWs24 = ws;
+  });
+
+  const s1 = isEn
+    ? `Currently in <strong>${escapeHtml(locName)}</strong>, conditions are <strong>${escapeHtml(desc)}</strong> at <strong>${tempNow}°${unit}</strong> (feels like ${feelsNow}°${unit}) with ${hu}% humidity and today's range between ${minVal}° and ${maxVal}°${unit}.`
+    : `Saat ini di <strong>${escapeHtml(locName)}</strong>, cuaca <strong>${escapeHtml(desc)}</strong> dengan suhu <strong>${tempNow}°${unit}</strong> (terasa ${feelsNow}°${unit}), kelembapan ${hu}%, dan rentang suhu hari ini ${minVal}°–${maxVal}°${unit}.`;
+
+  let s2;
+  if (maxTp24 >= 10) {
+    s2 = isEn
+      ? `Over the next 24 hours of BMKG intervals, heavy rainfall up to <strong>${maxTp24.toFixed(1)} mm</strong> is forecast with peak winds around <strong>${maxWs24} km/h</strong>.`
+      : `Pada prakiraan 24 jam ke depan, hujan lebat hingga <strong>${maxTp24.toFixed(1)} mm</strong> berpotensi terjadi dengan kecepatan angin hingga <strong>${maxWs24} km/j</strong>.`;
+  } else if (maxTp24 >= 2.5) {
+    s2 = isEn
+      ? `Moderate rain up to <strong>${maxTp24.toFixed(1)} mm</strong> appears in upcoming intervals, accompanied by winds up to <strong>${maxWs24} km/h</strong>.`
+      : `Hujan intensitas sedang hingga <strong>${maxTp24.toFixed(1)} mm</strong> terlihat pada interval berikutnya dengan angin maksimum <strong>${maxWs24} km/j</strong>.`;
+  } else if (maxTp24 > 0) {
+    s2 = isEn
+      ? `Light precipitation (up to <strong>${maxTp24.toFixed(1)} mm</strong>) and winds around <strong>${maxWs24} km/h</strong> are indicated across the next 24 hours.`
+      : `Potensi hujan ringan (hingga <strong>${maxTp24.toFixed(1)} mm</strong>) dan angin sekitar <strong>${maxWs24} km/j</strong> terpantau dalam 24 jam ke depan.`;
+  } else {
+    s2 = isEn
+      ? `No significant rainfall (0 mm) is indicated in the next 24-hour forecast intervals, with winds peaking near <strong>${maxWs24} km/h</strong>.`
+      : `Tidak ada akumulasi hujan signifikan (0 mm) pada interval 24 jam ke depan, dengan angin maksimum sekitar <strong>${maxWs24} km/j</strong>.`;
+  }
+
+  let s3 = "";
+  const g = STATE.gempaData;
+  if (g && g.Magnitude) {
+    const gLoc = escapeHtml(formatGempaWilayah(g.Wilayah, "--"));
+    s3 = isEn
+      ? `<p class="text-[11px] text-slate-600">Latest BMKG InaTEWS monitor: <strong>M ${escapeHtml(String(g.Magnitude))}</strong> (${gLoc}, depth ${escapeHtml(String(g.Kedalaman || "--"))}).</p>`
+      : `<p class="text-[11px] text-slate-600">Pantauan InaTEWS BMKG terkini mencatat gempa <strong>M ${escapeHtml(String(g.Magnitude))}</strong> (${gLoc}, kedalaman ${escapeHtml(String(g.Kedalaman || "--"))}).</p>`;
+  }
+
+  let tipText;
+  if (maxTp24 >= 10 || curTp >= 10) {
+    tipText = isEn
+      ? "Action tip: Carry waterproof gear, avoid flood-prone roads, and check BMKG early warnings before traveling."
+      : "Saran tindakan: Siapkan jas hujan/payung, hindari jalur rawan genangan, dan pantau peringatan dini BMKG sebelum bepergian.";
+  } else if (maxTp24 > 0.2) {
+    tipText = isEn
+      ? "Action tip: Bring an umbrella when stepping out and plan flexible timing for outdoor tasks."
+      : "Saran tindakan: Bawa payung saat keluar ruangan dan jadwalkan aktivitas luar ruang secara fleksibel.";
+  } else if (maxWs24 >= 30) {
+    tipText = isEn
+      ? "Action tip: Stay clear of fragile billboards or large trees during strong wind gusts."
+      : "Saran tindakan: Hindari berteduh di bawah pohon besar atau papan reklame saat hembusan angin kencang.";
+  } else if (Number(cur.t) >= 33 || Number(cur.uvIndex) >= 8) {
+    tipText = isEn
+      ? "Action tip: Drink plenty of water and use sun protection if spending extended time outdoors."
+      : "Saran tindakan: Perbanyak minum air putih dan gunakan pelindung sinar matahari bila beraktivitas lama di luar.";
+  } else {
+    tipText = isEn
+      ? "Action tip: Weather conditions are generally supportive for daily commuting and outdoor activities."
+      : "Saran tindakan: Kondisi cuaca relatif mendukung mobilitas harian dan aktivitas luar ruang.";
+  }
+
+  bodyEl.innerHTML = `<p>${s1} ${s2}</p>${s3}`;
+  if (tipEl) {
+    tipEl.textContent = tipText;
+    tipEl.classList.remove("hidden");
+  }
+}
+window.renderAeroAISummaryCard = renderAeroAISummaryCard;
+
 let isInitialLocationSync = true;
 
 function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
@@ -1353,6 +1460,7 @@ function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
 
   if (isUnavailable || !data || !data.current || data.isUnavailable) {
     renderOverviewCard(null, true);
+    renderAeroAISummaryCard(null, true);
     renderHeroUnavailableState(locName);
     renderDossierUnavailableState(locName);
     renderChartsUnavailableState(locName);
@@ -1373,6 +1481,7 @@ function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
 
   renderOverviewCard(data, false);
   renderHeroWeather(data);
+  renderAeroAISummaryCard(data, false);
   renderSmartAlerts(data.smartAlerts || []);
   renderWeatherInsight(data.weatherInsight, data);
   renderActivityRecommendations(data.weatherInsight?.recommendations || {});
@@ -3043,6 +3152,10 @@ function renderMainEarthquakeCard(g) {
   if (dashTime) dashTime.textContent = `${g.Tanggal || ""} ${g.Jam || ""}`;
   const dashPotensi = document.getElementById("dash-gempa-potensi");
   if (dashPotensi) dashPotensi.textContent = g.Potensi || _t("dyn.eq_no_tsunami");
+
+  if (STATE.currentData && typeof renderAeroAISummaryCard === "function") {
+    renderAeroAISummaryCard(STATE.currentData, Boolean(STATE.currentData.isUnavailable));
+  }
 }
 
 /**
@@ -3654,6 +3767,8 @@ function toggleTemperatureUnit() {
   STATE.unit = STATE.unit === "C" ? "F" : "C";
 
   if (STATE.currentData) {
+    renderOverviewCard(STATE.currentData, Boolean(STATE.currentData.isUnavailable));
+    renderAeroAISummaryCard(STATE.currentData, Boolean(STATE.currentData.isUnavailable));
     renderHeroWeather(STATE.currentData);
     renderHourlyForecast(STATE.currentData);
     renderDailyCards(STATE.currentData);

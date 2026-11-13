@@ -120,6 +120,11 @@
       "dash.outlook_title": "Rangkuman 3 Hari",
       "dash.outlook_tag": "Prakiraan",
       "dash.other_cities": "Wilayah Lainnya (Indonesia)",
+      "dash.aero_title": "Ringkasan AeroAI",
+      "dash.aero_badge": "Berbasis Aturan BMKG",
+      "dash.aero_ask": "Tanya AeroAI →",
+      "dash.aero_loading": "Menyusun ringkasan dari data BMKG yang dimuat...",
+      "dash.aero_source": "Sumber: Data Prakiraan & InaTEWS BMKG yang dimuat",
 
       // Map
       "map.mode_temp": "Suhu Wilayah",
@@ -452,6 +457,11 @@
       "dash.outlook_title": "3-Day Outlook",
       "dash.outlook_tag": "Forecast",
       "dash.other_cities": "Other Regions (Indonesia)",
+      "dash.aero_title": "AeroAI Summary",
+      "dash.aero_badge": "BMKG Rule-Based",
+      "dash.aero_ask": "Ask AeroAI →",
+      "dash.aero_loading": "Composing summary from loaded BMKG data...",
+      "dash.aero_source": "Source: Loaded BMKG Forecast & InaTEWS Data",
 
       // Map
       "map.mode_temp": "Temperature",
