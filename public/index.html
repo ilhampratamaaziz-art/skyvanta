@@ -524,15 +524,15 @@
         <!-- HEADER BAR (Clean White Liquid Glass) -->
         <header class="aurora-header">
           <!-- Page Title & Category -->
-          <div class="flex flex-col justify-center">
+          <div class="flex flex-col justify-center min-w-0 flex-1 pr-2">
             <span
-              class="aurora-welcome-text text-[10px] tracking-widest text-slate-500 font-bold uppercase"
+              class="aurora-welcome-text text-[10px] tracking-widest text-slate-600 font-bold uppercase truncate"
               id="header-welcome-badge"
               data-i18n="header.badge"
               >Portal Meteorologi</span
             >
             <p
-              class="aurora-page-title text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight"
+              class="aurora-page-title text-sm sm:text-lg font-black text-slate-900 tracking-tight leading-tight truncate"
               id="page-title-display"
             >
               <span>Dashboard Cuaca</span>
@@ -593,19 +593,38 @@
           </div>
 
           <!-- Right Action Controls (Uniform Sleek Glass Buttons) -->
-          <div class="flex items-center gap-2">
-            <!-- Mobile Language Toggle (sidebar footer hidden on <768px) -->
-            <button
-              id="btn-lang-toggle-mobile"
-              type="button"
-              onclick="toggleLanguage()"
-              class="flex md:hidden w-11 h-11 rounded-full bg-white/80 hover:bg-white text-slate-800 border border-white/80 backdrop-blur-md shadow-sm transition-all items-center justify-center font-bold text-xs cursor-pointer"
-              title="Ubah Bahasa (Indonesia / English)"
-              aria-label="ID — Ubah Bahasa (Indonesia / English)"
-              data-i18n-title="nav.lang_title"
+          <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <!-- Mobile Language & Unit Control Group (visible only on <768px) -->
+            <div
+              id="mobile-lang-unit-group"
+              class="flex md:hidden items-center rounded-full bg-white/85 border border-slate-200/90 shadow-sm p-0.5 flex-shrink-0"
+              role="group"
+              aria-label="Kontrol Bahasa dan Satuan Suhu"
             >
-              ID
-            </button>
+              <button
+                id="btn-lang-toggle-mobile"
+                type="button"
+                onclick="toggleLanguage()"
+                class="min-w-[44px] h-[44px] px-2.5 rounded-full hover:bg-sky-50 text-slate-800 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
+                title="Ubah Bahasa (Indonesia / English)"
+                aria-label="ID — Ubah Bahasa (Indonesia / English)"
+                data-i18n-title="nav.lang_title"
+              >
+                ID
+              </button>
+              <span class="w-px h-5 bg-slate-200/90 flex-shrink-0" aria-hidden="true"></span>
+              <button
+                id="btn-unit-toggle-mobile"
+                type="button"
+                onclick="toggleTemperatureUnit()"
+                class="min-w-[44px] h-[44px] px-2.5 rounded-full hover:bg-sky-50 text-slate-800 transition-colors flex items-center justify-center font-bold text-xs cursor-pointer"
+                title="Ubah Satuan Suhu"
+                aria-label="°C — Ubah Satuan Suhu"
+                data-i18n-title="nav.unit_title"
+              >
+                °C
+              </button>
+            </div>
 
             <!-- Earthquake Pill (Clean Borderless Pill) -->
             <button
@@ -630,7 +649,7 @@
             <button
               id="btn-refresh-data"
               onclick="refreshWeatherData()"
-              class="w-9 h-9 rounded-full bg-white/70 hover:bg-white text-slate-700 border border-white/80 backdrop-blur-md shadow-sm transition-all flex items-center justify-center cursor-pointer"
+              class="w-11 h-11 md:w-9 md:h-9 rounded-full bg-white/80 hover:bg-white text-slate-700 border border-white/90 shadow-sm transition-all flex items-center justify-center flex-shrink-0 cursor-pointer"
               title="Segarkan Data Cuaca"
               data-i18n-title="header.refresh_title"
               data-i18n-aria-label="header.refresh_title"
@@ -654,7 +673,7 @@
             <!-- Alerts Bell (Circular Frosted Glass with Hidden Zero Badge) -->
             <button
               onclick="openOfficialAlertsModal()"
-              class="w-9 h-9 rounded-full bg-white/70 hover:bg-white text-slate-700 border border-white/80 backdrop-blur-md shadow-sm transition-all relative flex items-center justify-center cursor-pointer"
+              class="w-11 h-11 md:w-9 md:h-9 rounded-full bg-white/80 hover:bg-white text-slate-700 border border-white/90 shadow-sm transition-all relative flex items-center justify-center flex-shrink-0 cursor-pointer"
               title="Peringatan Dini Cuaca"
               data-i18n-title="header.alerts_title"
               data-i18n-aria-label="header.alerts_title"
@@ -1211,9 +1230,8 @@
                         type="button"
                         onclick="toggleFavoriteLocation()"
                         aria-pressed="false"
-                        aria-label="Simpan lokasi ke daftar favorit"
+                        aria-label="Simpan Favorit — Simpan lokasi ke daftar favorit"
                         title="Simpan lokasi ke daftar favorit"
-                        data-i18n-aria-label="fav.add_aria"
                         data-i18n-title="fav.add_aria"
                         class="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-full bg-white/80 hover:bg-amber-50 border border-slate-200/90 text-xs font-bold text-slate-700 transition-colors cursor-pointer"
                       >
@@ -1672,7 +1690,7 @@
               <!-- Other Major Indonesian Cities -->
               <div class="space-y-2">
                 <h3
-                  class="text-xs uppercase font-bold text-slate-700 px-1 tracking-wider"
+                  class="inline-block text-xs uppercase font-bold text-slate-800 px-2.5 py-0.5 rounded-full bg-white/80 border border-white/90 tracking-wider"
                   data-i18n="dash.other_cities"
                 >
                   Wilayah Lainnya (Indonesia)
@@ -2876,58 +2894,7 @@
                 <div
                   id="ai-quick-chips"
                   class="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth flex-1 py-0.5 select-none"
-                >
-                  <button
-                    onclick="
-                      askAIPrompt('Bagaimana cuaca di Bandar Lampung sekarang?')
-                    "
-                    class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer"
-                  >
-                    📍 Bandar Lampung
-                  </button>
-                  <button
-                    onclick="
-                      askAIPrompt('Bandingkan cuaca Jakarta dan Surabaya.')
-                    "
-                    class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer"
-                  >
-                    ⚖️ Komparasi JKT vs SBY
-                  </button>
-                  <button
-                    onclick="
-                      askAIPrompt(
-                        'Kota mana yang memiliki suhu tertinggi berdasarkan data yang tersedia?',
-                      )
-                    "
-                    class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer"
-                  >
-                    🔥 Suhu Tertinggi RI
-                  </button>
-                  <button
-                    onclick="
-                      askAIPrompt('Apakah Lampung berpotensi mengalami hujan?')
-                    "
-                    class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer"
-                  >
-                    🌧️ Hujan di Lampung
-                  </button>
-                  <button
-                    onclick="
-                      askAIPrompt('Rekomendasi pakaian apa yang pas hari ini?')
-                    "
-                    class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer"
-                  >
-                    👕 Pakaian
-                  </button>
-                  <button
-                    onclick="
-                      askAIPrompt('Bagaimana kondisi gempa BMKG terbaru?')
-                    "
-                    class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer"
-                  >
-                    🚨 Gempa BMKG
-                  </button>
-                </div>
+                ></div>
                 <button
                   type="button"
                   onclick="scrollAIPrompts(140)"

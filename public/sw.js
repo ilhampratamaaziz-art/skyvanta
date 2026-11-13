@@ -1,4 +1,4 @@
-const SHELL_CACHE = "skyvanta-shell-v2";
+const SHELL_CACHE = "skyvanta-shell-v3";
 const API_CACHE = "skyvanta-api-v1";
 
 const SHELL_ASSETS = [

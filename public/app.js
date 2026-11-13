@@ -241,8 +241,11 @@ function renderFavoritesList() {
   const starBtn = document.getElementById("btn-favorite-toggle");
   const starIcon = document.getElementById("favorite-star-icon");
   const starLabel = document.getElementById("favorite-toggle-label");
+  const btnText = _t(favorited ? "fav.saved" : "fav.add");
+  const activeName = STATE.activeLocation?.name || activeAdm4 || "";
   if (starBtn) {
     starBtn.setAttribute("aria-pressed", favorited ? "true" : "false");
+    starBtn.setAttribute("aria-label", `${btnText} — ${favorited ? _t("fav.remove_aria", { name: activeName }) : _t("fav.add_aria")}`);
     starBtn.classList.toggle("bg-amber-50", favorited);
     starBtn.classList.toggle("border-amber-300", favorited);
     starBtn.classList.toggle("text-amber-800", favorited);
@@ -256,7 +259,7 @@ function renderFavoritesList() {
     starIcon.classList.toggle("text-slate-400", !favorited);
   }
   if (starLabel) {
-    starLabel.textContent = _t(favorited ? "fav.saved" : "fav.add");
+    starLabel.textContent = btnText;
   }
 
   const countBadge = document.getElementById("favorites-count-badge");
@@ -354,12 +357,16 @@ function removeFavoriteLocation(adm4) {
 }
 
 function syncUnitToggleButton() {
-  const btn = document.getElementById("btn-unit-toggle");
-  if (!btn) return;
   const labelText = `°${STATE.unit}`;
-  btn.textContent = labelText;
-  btn.setAttribute("aria-pressed", STATE.unit === "F" ? "true" : "false");
-  btn.setAttribute("aria-label", `${labelText} — ${_t("nav.unit_title")}`);
+  const isF = STATE.unit === "F" ? "true" : "false";
+  const aria = `${labelText} — ${_t("nav.unit_title")}`;
+  ["btn-unit-toggle", "btn-unit-toggle-mobile"].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.textContent = labelText;
+    btn.setAttribute("aria-pressed", isF);
+    btn.setAttribute("aria-label", aria);
+  });
 }
 
 function renderHeroErrorState(adm4, errorMsg = "Gagal menghubungi BMKG") {
@@ -534,15 +541,40 @@ class AtmosphereCanvas {
     this.ctx = this.canvas.getContext("2d");
     this.particles = [];
     this.mode = "clear"; // 'rain', 'clear', 'clouds'
+    this.rafId = null;
+    this.reducedMotionQuery =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-reduced-motion: reduce)")
+        : null;
     this.resize();
-    window.addEventListener("resize", () => this.resize());
-    this.animate();
+    let resizeTimer = null;
+    window.addEventListener(
+      "resize",
+      () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => this.resize(), 150);
+      },
+      { passive: true },
+    );
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) this.stopLoop();
+      else this.startLoop();
+    });
+    this.startLoop();
+  }
+
+  shouldAnimate() {
+    if (!STATE.dynamicAtmosphere) return false;
+    if (document.hidden) return false;
+    if (this.reducedMotionQuery && this.reducedMotionQuery.matches) return false;
+    return this.mode !== "clear" && this.particles.length > 0;
   }
 
   resize() {
     this.width = this.canvas.width = window.innerWidth;
     this.height = this.canvas.height = window.innerHeight;
     this.initParticles();
+    this.startLoop();
   }
 
   setMode(weatherDesc) {
@@ -560,14 +592,21 @@ class AtmosphereCanvas {
       this.mode = "clear";
     }
     this.initParticles();
+    this.startLoop();
   }
 
   initParticles() {
     this.particles = [];
     if (!STATE.dynamicAtmosphere) return;
+    if (this.reducedMotionQuery && this.reducedMotionQuery.matches) return;
+
+    const isLowPowerMobile =
+      window.innerWidth <= 768 ||
+      (typeof navigator !== "undefined" && navigator.hardwareConcurrency <= 4);
 
     if (this.mode === "rain") {
-      const count = Math.min(100, Math.floor(this.width / 16));
+      const cap = isLowPowerMobile ? 32 : 90;
+      const count = Math.min(cap, Math.floor(this.width / (isLowPowerMobile ? 14 : 16)));
       for (let i = 0; i < count; i++) {
         this.particles.push({
           x: Math.random() * this.width,
@@ -579,7 +618,8 @@ class AtmosphereCanvas {
         });
       }
     } else if (this.mode === "clouds") {
-      for (let i = 0; i < 25; i++) {
+      const cloudCount = isLowPowerMobile ? 10 : 20;
+      for (let i = 0; i < cloudCount; i++) {
         this.particles.push({
           x: Math.random() * this.width,
           y: Math.random() * this.height,
@@ -591,11 +631,30 @@ class AtmosphereCanvas {
     }
   }
 
+  stopLoop() {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+  }
+
+  startLoop() {
+    if (!this.shouldAnimate()) {
+      this.stopLoop();
+      if (this.ctx) this.ctx.clearRect(0, 0, this.width, this.height);
+      return;
+    }
+    if (this.rafId === null) {
+      this.rafId = requestAnimationFrame(() => this.animate());
+    }
+  }
+
   animate() {
-    requestAnimationFrame(() => this.animate());
+    this.rafId = null;
+    if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.width, this.height);
 
-    if (!STATE.dynamicAtmosphere) return;
+    if (!this.shouldAnimate()) return;
 
     if (this.mode === "rain") {
       this.ctx.strokeStyle = "rgba(186, 230, 253, 0.45)";
@@ -636,6 +695,8 @@ class AtmosphereCanvas {
         }
       }
     }
+
+    this.rafId = requestAnimationFrame(() => this.animate());
   }
 }
 
@@ -697,9 +758,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     dismissLoader();
   }
 
-  // 4. Background tasks (Pre-load map pins & periodic TEWS refresh)
-  preloadMapTemperatures();
+  // 4. Lazy background tasks (Defer heavy map preload on initial render & center mobile bottom nav)
+  const runLazyPreload = () => preloadMapTemperatures();
+  const initialHash = window.location.hash;
+  if (initialHash === "#map" || initialHash === "#rainfall") {
+    runLazyPreload();
+  } else if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(runLazyPreload, { timeout: 2000 });
+  } else {
+    setTimeout(runLazyPreload, 900);
+  }
   setInterval(loadEarthquakeAlert, 120000);
+
+  const syncMobileViewHooks = () => {
+    requestAnimationFrame(() => {
+      if (window.innerWidth <= 768) {
+        const activeBtn = document.querySelector(".aurora-nav-btn.is-active");
+        if (activeBtn && typeof activeBtn.scrollIntoView === "function") {
+          activeBtn.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
+        }
+      }
+      if (
+        STATE.pendingDetailsChart &&
+        document.getElementById("view-details")?.classList.contains("is-active-view")
+      ) {
+        const pendingData = STATE.pendingDetailsChart;
+        STATE.pendingDetailsChart = null;
+        renderCharts(pendingData);
+      }
+      if (
+        STATE.pendingRainfallChart &&
+        document.getElementById("view-rainfall")?.classList.contains("is-active-view") &&
+        typeof renderRainfallChart === "function"
+      ) {
+        STATE.pendingRainfallChart = false;
+        renderRainfallChart();
+      }
+    });
+  };
+  window.addEventListener("hashchange", syncMobileViewHooks);
+  syncMobileViewHooks();
 });
 
 
@@ -1341,6 +1439,7 @@ function syncAllTitles(loc) {
   if (rainCity) rainCity.textContent = locName;
 
   // 8. AI Assistant Subtitle & Chips
+  STATE.aiContextLocation = locName;
   const aiSub = document.getElementById("ai-active-subtitle");
   if (aiSub) aiSub.textContent = _t("dyn.ai_sub_loc", { loc: locName });
   updateAIPromptChips(locName);
@@ -1359,33 +1458,41 @@ window.syncAllTitles = syncAllTitles;
 function updateAIPromptChips(locName) {
   const container = document.getElementById("ai-quick-chips");
   if (!container) return;
-  const safeLoc = locName.replace(/'/g, "\\'");
+  const displayLoc = locName || STATE.activeLocation?.name || STATE.activeLocation?.kotkab || "Jakarta Pusat";
   const isEn = typeof window.getLang === "function" && window.getLang() === "en";
-  const prompts = isEn
+  const compareTarget = /surabaya/i.test(displayLoc) ? "Jakarta Pusat" : "Surabaya";
+  const chips = isEn
     ? [
-        `How is the weather in ${safeLoc} right now?`,
-        `Is there rain potential in ${safeLoc} in the next 24 hours?`,
-        `What clothing and activities fit the weather in ${safeLoc}?`,
-        `Compare the weather in ${safeLoc} with other regions.`,
-        `Which Indonesian city has the highest temperature in current BMKG data?`,
-        `What is the latest BMKG earthquake update?`
+        { label: _t("dyn.ai_chip_weather", { loc: displayLoc }), prompt: `How is the weather in ${displayLoc} today?` },
+        { label: _t("dyn.ai_chip_rain24"), prompt: `What is the rain potential in ${displayLoc} over the next 24 hours?` },
+        { label: _t("dyn.ai_chip_cloth"), prompt: `What clothing is recommended for the weather in ${displayLoc} today?` },
+        { label: _t("dyn.ai_chip_act"), prompt: `What outdoor activities are safe in ${displayLoc} today?` },
+        { label: _t("dyn.ai_chip_max_loc", { loc: displayLoc }), prompt: `What is the highest temperature in ${displayLoc} today?` },
+        { label: _t("dyn.ai_chip_comp", { loc: displayLoc }), prompt: `Compare the weather in ${displayLoc} and ${compareTarget} today.` },
+        { label: _t("dyn.ai_chip_hot"), prompt: `Which city in Indonesia has the highest temperature in current BMKG data?` },
+        { label: _t("dyn.ai_chip_eq"), prompt: `What is the latest BMKG earthquake update?` }
       ]
     : [
-        `Bagaimana cuaca di ${safeLoc} sekarang?`,
-        `Apakah di ${safeLoc} berpotensi hujan dalam 24 jam ke depan?`,
-        `Rekomendasi pakaian dan aktivitas yang pas untuk cuaca di ${safeLoc}?`,
-        `Bandingkan cuaca di ${safeLoc} dengan wilayah lainnya.`,
-        `Kota mana yang memiliki suhu tertinggi berdasarkan data BMKG saat ini?`,
-        `Bagaimana kondisi gempa bumi BMKG terbaru?`
+        { label: _t("dyn.ai_chip_weather", { loc: displayLoc }), prompt: `Bagaimana cuaca di ${displayLoc} hari ini?` },
+        { label: _t("dyn.ai_chip_rain24"), prompt: `Bagaimana potensi hujan di ${displayLoc} dalam 24 jam ke depan?` },
+        { label: _t("dyn.ai_chip_cloth"), prompt: `Rekomendasi pakaian apa yang cocok untuk cuaca di ${displayLoc} hari ini?` },
+        { label: _t("dyn.ai_chip_act"), prompt: `Aktivitas luar ruangan apa yang aman di ${displayLoc} hari ini?` },
+        { label: _t("dyn.ai_chip_max_loc", { loc: displayLoc }), prompt: `Berapa suhu tertinggi di ${displayLoc} hari ini?` },
+        { label: _t("dyn.ai_chip_comp", { loc: displayLoc }), prompt: `Bandingkan cuaca ${displayLoc} dengan ${compareTarget} hari ini.` },
+        { label: _t("dyn.ai_chip_hot"), prompt: `Kota mana di Indonesia dengan suhu tertinggi menurut data BMKG saat ini?` },
+        { label: _t("dyn.ai_chip_eq"), prompt: `Bagaimana informasi gempa bumi BMKG terbaru?` }
       ];
-  container.innerHTML = `
-    <button onclick="askAIPrompt('${prompts[0]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_weather", { loc: escapeHtml(locName) })}</button>
-    <button onclick="askAIPrompt('${prompts[1]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_rain")}</button>
-    <button onclick="askAIPrompt('${prompts[2]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_rec", { loc: escapeHtml(locName) })}</button>
-    <button onclick="askAIPrompt('${prompts[3]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_comp")}</button>
-    <button onclick="askAIPrompt('${prompts[4]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_hot")}</button>
-    <button onclick="askAIPrompt('${prompts[5]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_eq")}</button>
-  `;
+
+  const frag = document.createDocumentFragment();
+  chips.forEach((chip) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer";
+    btn.textContent = chip.label;
+    btn.dataset.prompt = chip.prompt;
+    frag.appendChild(btn);
+  });
+  container.replaceChildren(frag);
 }
 window.updateAIPromptChips = updateAIPromptChips;
 
@@ -1889,12 +1996,24 @@ function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
   renderActivityRecommendations(data.weatherInsight?.recommendations || {});
   renderHourlyForecast(data);
   renderDailyCards(data);
-  renderCharts(data);
+  if (document.getElementById("view-details")?.classList.contains("is-active-view")) {
+    STATE.pendingDetailsChart = null;
+    renderCharts(data);
+  } else {
+    STATE.pendingDetailsChart = data;
+  }
   highlightActiveMapPin(loc.adm4, shouldFlyMap);
   if (typeof renderAuroraMiniChart === "function") renderAuroraMiniChart();
   if (typeof renderAuroraSideCities === "function") renderAuroraSideCities();
   if (typeof openCityDetailModalInline === "function") openCityDetailModalInline();
-  if (typeof renderRainfallChart === "function") renderRainfallChart();
+  if (typeof renderRainfallChart === "function") {
+    if (document.getElementById("view-rainfall")?.classList.contains("is-active-view")) {
+      STATE.pendingRainfallChart = false;
+      renderRainfallChart();
+    } else {
+      STATE.pendingRainfallChart = true;
+    }
+  }
   STATE.aiContextLocation = locName;
   renderQuickPills();
   renderFavoritesList();
@@ -2603,12 +2722,18 @@ function renderCharts(data) {
     ];
   }
 
+  const reduceChartAnim =
+    window.innerWidth <= 768 ||
+    (typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
   STATE.chartInstance = new Chart(ctx, {
     type: "line",
     data: { labels, datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: reduceChartAnim ? false : undefined,
       interaction: {
         mode: "index",
         intersect: false,
@@ -4406,13 +4531,13 @@ function renderWeatherInsight(insight, data) {
     riskBadge.textContent = insight.riskLevel;
     if (insight.riskCode === "high") {
       riskBadge.className =
-        "px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40";
+        "px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200";
     } else if (insight.riskCode === "medium") {
       riskBadge.className =
-        "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40";
+        "px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200";
     } else {
       riskBadge.className =
-        "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+        "px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200";
     }
   }
 }
@@ -4480,16 +4605,24 @@ function renderActivityRecommendations(recommendations) {
     },
   ];
 
+  const statusColorMap = {
+    rose: "text-rose-700",
+    amber: "text-amber-700",
+    emerald: "text-emerald-700",
+    cyan: "text-sky-700",
+    blue: "text-blue-700"
+  };
+
   container.innerHTML = list
     .map(
       (item) => `
-    <div class="p-2.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col justify-between">
+    <div class="p-2.5 rounded-xl bg-white/70 border border-slate-200/80 flex flex-col justify-between">
       <div class="flex items-center space-x-1.5 mb-1">
         <span class="inline-flex items-center justify-center text-slate-700 flex-shrink-0">${getActivityIconSvg(item.icon)}</span>
-        <span class="text-[10px] font-bold text-slate-300 truncate">${item.name}</span>
+        <span class="text-[11px] font-bold text-slate-700 truncate">${item.name}</span>
       </div>
-      <span class="font-bold text-${item.data.color}-300 text-xs">${item.data.status}</span>
-      <span class="text-[9px] text-slate-300 mt-0.5 leading-tight line-clamp-2">${item.data.reason}</span>
+      <span class="font-bold ${statusColorMap[item.data.color] || "text-sky-700"} text-xs">${item.data.status}</span>
+      <span class="text-[10px] text-slate-600 mt-0.5 leading-tight line-clamp-2">${item.data.reason}</span>
     </div>
   `,
     )
@@ -4865,26 +4998,42 @@ function askAIPrompt(text) {
 }
 
 async function askAssistant(question) {
+  const activeLang = typeof window.getLang === "function" ? window.getLang() : "id";
+  const activeLocName = STATE.activeLocation
+    ? (STATE.activeLocation.name || STATE.activeLocation.kotkab || null)
+    : null;
+  const recentHistory = Array.isArray(STATE.aiMessages) ? STATE.aiMessages.slice(-6) : [];
   try {
     const res = await fetch("/api/ai-assistant", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         question,
-        contextLocation: STATE.aiContextLocation || (STATE.activeLocation ? STATE.activeLocation.name : null),
+        lang: activeLang,
+        contextLocation: STATE.aiContextLocation || activeLocName || null,
         location: STATE.activeLocation || STATE.currentData?.lokasi || null,
         weatherContext: STATE.currentData || {},
         gempaContext: STATE.gempaData || {},
+        history: recentHistory,
       }),
     });
     const json = await res.json();
     if (json.contextLocation) {
       STATE.aiContextLocation = json.contextLocation;
     }
-    return json.reply || "Maaf, sistem meteorologi sedang sibuk.";
+    const replyText = json.reply || _t("dyn.ai_busy");
+    if (!Array.isArray(STATE.aiMessages)) STATE.aiMessages = [];
+    STATE.aiMessages.push(
+      { role: "user", content: question, contextLocation: json.contextLocation || activeLocName || STATE.aiContextLocation || null, intent: json.intent || null },
+      { role: "assistant", content: replyText, contextLocation: json.contextLocation || activeLocName || STATE.aiContextLocation || null, intent: json.intent || null }
+    );
+    if (STATE.aiMessages.length > 12) {
+      STATE.aiMessages = STATE.aiMessages.slice(-12);
+    }
+    return replyText;
   } catch (err) {
     console.error("askAssistant error:", err);
-    return "Maaf, terjadi kesalahan saat mengambil data.";
+    return _t("dyn.ai_err");
   }
 }
 
@@ -5055,9 +5204,15 @@ function setupEventListeners() {
   window.filterByProvince = filterByProvince;
   window.clearSearchHistory = clearSearchHistory;
 
-  // Horizontal mousewheel support for AI Quick Chips
+  // Horizontal mousewheel & click delegation for AI Quick Chips
   const aiChipsContainer = document.getElementById("ai-quick-chips");
   if (aiChipsContainer) {
+    aiChipsContainer.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-prompt]");
+      if (btn && btn.dataset.prompt) {
+        askAIPrompt(btn.dataset.prompt);
+      }
+    });
     aiChipsContainer.addEventListener(
       "wheel",
       (e) => {
@@ -5068,6 +5223,7 @@ function setupEventListeners() {
       },
       { passive: false }
     );
+    updateAIPromptChips(STATE.activeLocation?.name || STATE.activeLocation?.kotkab || "Jakarta Pusat");
   }
 
   // Keyboard accessibility
@@ -6239,6 +6395,10 @@ document.addEventListener("skyvanta:langchange", () => {
     updateOfflineSyncBanner(true);
   }
   if (typeof updateMapLegendContent === "function") updateMapLegendContent();
+  if (typeof updateAIPromptChips === "function") {
+    const activeLocLabel = STATE.activeLocation ? (STATE.activeLocation.name || STATE.activeLocation.kotkab) : "Jakarta Pusat";
+    updateAIPromptChips(activeLocLabel);
+  }
   if (typeof renderAnalytics === "function") renderAnalytics();
   if (typeof rainfallChartInstance !== "undefined" && rainfallChartInstance && rainfallChartInstance.data?.datasets) {
     if (rainfallChartInstance.data.datasets[0]) rainfallChartInstance.data.datasets[0].label = _t("dyn.chart_rain");

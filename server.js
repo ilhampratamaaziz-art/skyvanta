@@ -583,7 +583,7 @@ async function getWeatherDataForAdm4(adm4Input, forceRefresh = false) {
         console.warn(`[BMKG HTTP ${response.status}] Gagal sementara untuk kode adm4: ${adm4}`);
       }
 
-      return { status: 'no-data', message: 'BMKG belum menyediakan data untuk wilayah ini', adm4 };
+      return { status: 'no-data', rateLimited: response.status === 429, message: 'BMKG belum menyediakan data untuk wilayah ini', adm4 };
     }
 
     const rawData = await response.json();
@@ -597,7 +597,7 @@ async function getWeatherDataForAdm4(adm4Input, forceRefresh = false) {
       bmkgVerificationCache[adm4] = { status: 'no-data', checkedAt: new Date().toISOString() };
       saveBmkgCache();
 
-      return { status: 'no-data', message: 'BMKG belum menyediakan data untuk wilayah ini', adm4 };
+      return { status: 'no-data', rateLimited: response.status === 429, message: 'BMKG belum menyediakan data untuk wilayah ini', adm4 };
     }
 
     // Success status ok
@@ -750,113 +750,102 @@ app.get('/api/cuaca/verified', (req, res) => {
   return res.json({ success: true, verifiedCodes });
 });
 
-app.get('/api/cuaca/capitals', async (req, res) => {
+async function fetchCapitalsSnapshot() {
   const now = Date.now();
   if (capitalsCache.data && now - capitalsCache.timestamp < CAPITALS_TTL_MS) {
-    return res.json({ success: true, fromCache: true, data: capitalsCache.data });
+    const liveCount = capitalsCache.data.filter(c => !c.isFallback).length;
+    return { data: capitalsCache.data, fromCache: true, liveCount, totalCount: PROVINCIAL_CAPITALS.length, timestamp: capitalsCache.timestamp };
   }
 
-  try {
-    // Process in parallel batches of 8 to respect BMKG bandwidth
-    const results = [];
-    const batchSize = 8;
-    for (let i = 0; i < PROVINCIAL_CAPITALS.length; i += batchSize) {
-      const slice = PROVINCIAL_CAPITALS.slice(i, i + batchSize);
-      const batchResults = await Promise.all(
-        slice.map(async (cap) => {
-          const cached = weatherCache.get(cap.adm4);
-          if (cached && now - cached.timestamp < CACHE_TTL_MS) {
-            const cur = cached.payload.current || {};
-            const tpVal = cur.tp !== undefined && cur.tp !== null ? cur.tp : null;
-            return {
-              ...cap,
-              temp: cur.t,
-              weatherDesc: cur.weather_desc || 'Cerah Berawan',
-              humidity: cur.hu,
-              windSpeed: cur.ws,
-              windDir: cur.wd,
-              precipitation: tpVal,
-              tp: tpVal,
-              local_datetime: cur.local_datetime || cur.datetime || null,
-              cached: true
-            };
-          }
-
-          try {
-            const bmkgUrl = `https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=${encodeURIComponent(cap.adm4)}`;
-            const response = await fetch(bmkgUrl, {
-              headers: {
-                'User-Agent': 'BMKG-Weather-Indonesia-App/1.0',
-                'Accept': 'application/json'
-              },
-              signal: AbortSignal.timeout(5000)
-            });
-            if (response.ok) {
-              const raw = await response.json();
-              const cuacaDays = raw.data?.[0]?.cuaca || [];
-              let nearestSlot = null;
-              let minDiff = Infinity;
-              cuacaDays.forEach(day => {
-                day.forEach(slot => {
-                  const slotMs = new Date(slot.utc_datetime || slot.datetime).getTime();
-                  const diff = Math.abs(now - slotMs);
-                  if (diff < minDiff) {
-                    minDiff = diff;
-                    nearestSlot = slot;
-                  }
-                });
-              });
-
-              const firstSlot = raw.data?.[0]?.cuaca?.[0]?.[0] || {};
-              const slot = nearestSlot || firstSlot;
-
-              const t = slot.t !== undefined ? slot.t : 28;
-              const hu = slot.hu || 75;
-              const ws = slot.ws || 8;
-              const wd = slot.wd || 'Tenggara';
-              const tp = slot.tp !== undefined && slot.tp !== null ? slot.tp : null;
-              const localDatetime = slot.local_datetime || slot.datetime || null;
-              const weatherDesc = slot.weather_desc || 'Cerah Berawan';
-              const localIcon = iconMapper.getWeatherIcon(weatherDesc, slot.weather);
-
-              return {
-                ...cap,
-                temp: t,
-                weatherDesc,
-                icon: localIcon,
-                image: localIcon,
-                humidity: hu,
-                windSpeed: ws,
-                windDir: wd,
-                precipitation: tp,
-                tp: tp,
-                local_datetime: localDatetime
-              };
-            }
-          } catch (e) {}
-
+  const results = [];
+  const batchSize = 4;
+  let abortedByRateLimit = false;
+  for (let i = 0; i < PROVINCIAL_CAPITALS.length; i += batchSize) {
+    const slice = PROVINCIAL_CAPITALS.slice(i, i + batchSize);
+    if (abortedByRateLimit) {
+      results.push(...slice.map(cap => {
+        const cached = weatherCache.get(cap.adm4);
+        if (cached && cached.payload?.current) {
+          const cur = cached.payload.current;
+          return { ...cap, temp: cur.t, weatherDesc: cur.weather_desc || 'Cerah Berawan', humidity: cur.hu, windSpeed: cur.ws, windDir: cur.wd || 'Tenggara', precipitation: cur.tp ?? null, tp: cur.tp ?? null, local_datetime: cur.local_datetime || null, cached: true, isFallback: false };
+        }
+        return { ...cap, temp: 28, weatherDesc: 'Cerah Berawan', icon: 'icons/cerah-berawan.svg', image: 'icons/cerah-berawan.svg', humidity: 75, windSpeed: 5, windDir: 'Timur', precipitation: 0, isFallback: true };
+      }));
+      continue;
+    }
+    const hasUncached = slice.some((cap) => {
+      const cached = weatherCache.get(cap.adm4);
+      return !cached || (now - cached.timestamp >= CACHE_TTL_MS);
+    });
+    if (i > 0 && hasUncached) {
+      await new Promise(r => setTimeout(r, 220));
+    }
+    const batchResults = await Promise.all(
+      slice.map(async (cap) => {
+        const w = await getWeatherDataForAdm4(cap.adm4, false);
+        if (w && w.rateLimited) abortedByRateLimit = true;
+        if (w && w.status === 'ok' && w.current) {
+          const cur = w.current;
+          const tpVal = cur.tp !== undefined && cur.tp !== null ? cur.tp : null;
+          const weatherDesc = cur.weather_desc || 'Cerah Berawan';
+          const localIcon = cur.localIcon || iconMapper.getWeatherIcon(weatherDesc, cur.weather);
           return {
             ...cap,
-            temp: 28,
-            weatherDesc: 'Cerah Berawan',
-            icon: 'icons/cerah-berawan.svg',
-            image: 'icons/cerah-berawan.svg',
-            humidity: 75,
-            windSpeed: 5,
-            windDir: 'Timur',
-            precipitation: 0
+            temp: cur.t,
+            weatherDesc,
+            icon: localIcon,
+            image: localIcon,
+            humidity: cur.hu,
+            windSpeed: cur.ws,
+            windDir: cur.wd || 'Tenggara',
+            precipitation: tpVal,
+            tp: tpVal,
+            local_datetime: cur.local_datetime || cur.datetime || null,
+            cached: Boolean(w.fromCache),
+            isFallback: cur.t === undefined || cur.t === null
           };
-        })
-      );
-      results.push(...batchResults);
-    }
+        }
 
+        return {
+          ...cap,
+          temp: 28,
+          weatherDesc: 'Cerah Berawan',
+          icon: 'icons/cerah-berawan.svg',
+          image: 'icons/cerah-berawan.svg',
+          humidity: 75,
+          windSpeed: 5,
+          windDir: 'Timur',
+          precipitation: 0,
+          isFallback: true
+        };
+      })
+    );
+    results.push(...batchResults);
+  }
+
+  const liveCount = results.filter(c => !c.isFallback).length;
+  if (liveCount > 0) {
     capitalsCache = {
       data: results,
       timestamp: now
     };
+  } else if (capitalsCache.data) {
+    const prevLive = capitalsCache.data.filter(c => !c.isFallback).length;
+    if (prevLive > 0) {
+      return { data: capitalsCache.data, fromCache: true, liveCount: prevLive, totalCount: PROVINCIAL_CAPITALS.length, timestamp: capitalsCache.timestamp };
+    }
+  }
 
-    return res.json({ success: true, count: results.length, data: results });
+  return { data: results, fromCache: false, liveCount, totalCount: PROVINCIAL_CAPITALS.length, timestamp: now };
+}
+
+app.get('/api/cuaca/capitals', async (req, res) => {
+  try {
+    const snap = await fetchCapitalsSnapshot();
+    if (snap.fromCache) {
+      return res.json({ success: true, fromCache: true, data: snap.data });
+    }
+    return res.json({ success: true, count: snap.data.length, data: snap.data });
   } catch (err) {
     console.error('Error fetching capitals weather:', err);
     if (capitalsCache.data) {
@@ -1080,386 +1069,1017 @@ function resolveLocationsInQuery(query) {
   return matched;
 }
 
-// 7. Intelligent AI Weather Assistant (38 Provincial Capitals BMKG)
-app.post('/api/ai-assistant', async (req, res) => {
-  const { question } = req.body || {};
-  const q = (question || '').trim();
+// ============================================================
+// AEROAI INTENT, CONTEXT, GROQ & BILINGUAL ENGINE
+// ============================================================
+const AI_EN_CITY_ALIASES = {
+  'central jakarta': '31.71.01.1001',
+  'north jakarta': '31.72.01.1001',
+  'west jakarta': '31.73.01.1001',
+  'south jakarta': '31.74.01.1001',
+  'east jakarta': '31.75.01.1001',
+  'west java': '32.73.01.1001',
+  'central java': '33.74.01.1001',
+  'east java': '35.78.01.1001',
+  'north sumatra': '12.71.01.1001',
+  'west sumatra': '13.71.01.1001',
+  'south sumatra': '16.71.01.1001',
+  'south sulawesi': '73.71.01.1001',
+  'north sulawesi': '71.71.01.1001',
+  'east kalimantan': '64.72.01.1001',
+  'west kalimantan': '61.71.01.1002',
+  'south kalimantan': '63.71.01.1001',
+  'central kalimantan': '62.71.01.1001',
+  'north kalimantan': '65.01.01.1001',
+  'jakarta pusat': '31.71.01.1001',
+  'jakarta selatan': '31.74.01.1001',
+  'jakarta barat': '31.73.01.1001',
+  'jakarta timur': '31.75.01.1001',
+  'jakarta utara': '31.72.01.1001',
+  'malang': '35.73.01.1001',
+  'solo': '33.72.01.1001',
+  'surakarta': '33.72.01.1001',
+  'batam': '21.71.01.1001',
+  'depok': '32.76.01.1001',
+  'cirebon': '32.74.01.1001',
+  'pontianak': '61.71.01.1002',
+  'pekanbaru': '14.71.01.1002',
+  'ambon': '81.71.01.2001',
+  'mataram': '52.71.02.1001',
+  'kendari': '74.71.03.1001',
+  'palu': '72.71.02.1002',
+  'mamuju': '76.02.01.1002',
+  'sofifi': '82.72.01.1001',
+  'sorong': '96.71.01.1001',
+  'nabire': '94.01.01.1001',
+  'wamena': '95.01.01.1001',
+  'merauke': '93.01.01.2001',
+  'pangkal pinang': '19.71.02.1001',
+  'tanjung pinang': '21.72.01.1001'
+};
 
-  if (!q) {
-    return res.status(400).json({ success: false, reply: 'Pertanyaan tidak boleh kosong.' });
+const AI_WEATHER_DESC_EN = {
+  'cerah': 'Clear',
+  'cerah berawan': 'Partly Cloudy',
+  'berawan': 'Cloudy',
+  'berawan tebal': 'Overcast',
+  'udara kabur': 'Haze',
+  'kabut': 'Fog',
+  'asap': 'Smoke',
+  'hujan ringan': 'Light Rain',
+  'hujan sedang': 'Moderate Rain',
+  'hujan lebat': 'Heavy Rain',
+  'hujan petir': 'Thunderstorm',
+  'hujan disertai petir': 'Thunderstorm',
+  'petir': 'Thunderstorm'
+};
+
+function translateWeatherDescAI(desc, lang) {
+  if (!desc) return lang === 'en' ? 'N/A' : 'Tidak tersedia';
+  if (lang !== 'en') return desc;
+  const key = String(desc).trim().toLowerCase();
+  return AI_WEATHER_DESC_EN[key] || desc;
+}
+
+function classifyAIIntent(question, history = []) {
+  const q = String(question || '').trim().toLowerCase();
+
+  let timeScope = 'today';
+  if (/\b(kemarin|yesterday)\b/i.test(q)) {
+    timeScope = 'past';
+  } else if (/\b([4-9]|1[0-9])\s*(hari|days?)\b|minggu\s*depan|bulan\s*depan|pekan\s*depan|next\s*(week|month)/i.test(q)) {
+    timeScope = 'beyond_limit';
+  } else if (/\b(3|tiga|three)\s*(hari|days?)\b|72\s*(jam|hours?)|beberapa\s*hari\s*(ke\s*depan)?|next\s*3\s*days|multi[- ]day/i.test(q)) {
+    timeScope = '72h';
+  } else if (/\blusa\b|day\s*after\s*tomorrow|hari\s*ke[- ]*2/i.test(q)) {
+    timeScope = 'day_after';
+  } else if (/\b(besok|esok|tomorrow)\b/i.test(q)) {
+    timeScope = 'tomorrow';
+  } else if (/24\s*(jam|hours?)|next\s*24|sehari\s*ke\s*depan|malam\s*ini|later\s*today|tonight|this\s*evening/i.test(q)) {
+    timeScope = '24h';
+  } else if (/\b(sekarang|saat\s*ini|right\s*now|currently|current)\b/i.test(q)) {
+    timeScope = 'now';
   }
 
-  const qLower = q.toLowerCase();
+  const hasClothing = /\b(pakaian|baju|jaket|outfit|pakai\s*apa|kenakan|payung|jas\s*hujan|clothing|clothes|wear|dress|umbrella|raincoat)\b/i.test(q);
+  const hasActivity = /\b(aktivitas|kegiatan|olahraga|lari|jogging|jemur|berkendara|wisata|jalan[- ]jalan|outdoor|activities|activity|exercise|jog|laundry|driving|safe\s*for)\b/i.test(q);
+  const isNationalScope = /(indonesia|nasional|\b38\b|seluruh|ibukota|across\s*indonesia|available\s*bmkg|kota\s*mana|which\s*city)/i.test(q);
+  const isHottestQuery = /(suhu\s*tertinggi|paling\s*panas|terpanas|kota\s*terpanas|hottest|highest\s*temp(?:erature)?|warmest\s*city|peak\s*temp)/i.test(q);
 
-  // PEMETAAN WAKTU: "kemarin" (JANGAN dijawab dengan angka)
-  if (/\bkemarin\b/i.test(qLower)) {
-    return res.json({
-      success: true,
-      reply: 'Data cuaca kemarin belum tersedia. Saya hanya bisa memberikan prakiraan untuk hari ini dan beberapa hari ke depan.'
-    });
+  let intent = 'general_weather';
+  if (/(gempa|tsunami|inatews|magnitudo|episentrum|shakemap|guncangan|\bmmi\b|earthquake|quake|seismic|tremor)/i.test(q)) {
+    intent = 'earthquake';
+  } else if (isHottestQuery && isNationalScope) {
+    intent = 'highest_temp';
+  } else if (/(banding|kompara|dibanding|\bvs\.?\b|\bversus\b|compare|comparison|mana\s*yang\s*lebih|which\s*is\s*(warmer|hotter|cooler|rainier|better))/i.test(q)) {
+    intent = 'comparison';
+  } else if (hasClothing) {
+    intent = 'clothing';
+  } else if (hasActivity) {
+    intent = 'activity';
+  } else if (/(curah\s*hujan|intensitas\s*hujan|volume\s*hujan|presipitasi|milimeter|\bmm\b|rainfall|precipitation|how\s*much\s*rain)/i.test(q)) {
+    intent = 'rainfall';
+  } else if (/(potensi\s*hujan|peluang\s*hujan|berpotensi\s*hujan|bakal\s*hujan|akan\s*hujan|kemungkinan\s*hujan|\bhujan\b|rain\s*potential|rain\s*probability|chance\s*of\s*rain|will\s*it\s*rain|going\s*to\s*rain|rain\s*outlook|\brainy?\b|\braining\b)/i.test(q)) {
+    intent = 'rain_probability';
+    if (timeScope === 'today' && /24/i.test(q)) timeScope = '24h';
+  } else if (/(angin|kecepatan\s*angin|arah\s*angin|hembusan|embusan|\bwind\b|wind\s*speed|windy|gust)/i.test(q)) {
+    intent = 'wind';
+  } else if (/(kelembapan|kelembaban|lembap|titik\s*embun|humidity|humid|dew\s*point|moisture)/i.test(q)) {
+    intent = 'humidity';
+  } else if (/(suhu|temperatur|feels\s*like|suhu\s*terasa|panas|dingin|sejuk|derajat|temperature|\btemp\b|warm|hot|cold|cool|max\s*temp)/i.test(q)) {
+    intent = 'temperature';
+  } else if (/(prakiraan|ramalan|forecast|outlook)/i.test(q)) {
+    intent = 'daily_forecast';
+  } else if (/(cuaca|kondisi|bagaimana|gimana|weather|condition|today|right\s*now|hari\s*ini|sekarang)/i.test(q)) {
+    intent = 'current_weather';
   }
 
-  // ATURAN 7: Gempa tetap memakai sumber gempa BMKG, tidak memakai daftar kota
-  if (qLower.includes('gempa') || qLower.includes('tsunami') || qLower.includes('lindup') || qLower.includes('seismik')) {
-    try {
-      let g = null;
-      if (gempaCache.data && Date.now() - gempaCache.timestamp < GEMPA_TTL_MS) {
-        g = gempaCache.data;
-      } else {
-        const response = await fetch('https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json', {
-          headers: { 'User-Agent': 'BMKG-TEWS-App/1.0' },
-          signal: AbortSignal.timeout(4000)
-        });
-        if (response.ok) {
-          const gData = await response.json();
-          g = gData.Infogempa ? gData.Infogempa.gempa : null;
-        }
+  let isFollowUp = false;
+  if (Array.isArray(history) && history.length > 0) {
+    const lastEntry = [...history].reverse().find(h => h && (h.intent || h.contextLocation));
+    const isShortFollowUp = q.split(/\s+/).length <= 7 && /\b(kalau|bagaimana|gimana|dan|what\s+about|how\s+about|and)\b/i.test(q);
+    if (isShortFollowUp && (intent === 'general_weather' || intent === 'current_weather' || intent === 'daily_forecast') && lastEntry?.intent && lastEntry.intent !== 'general_weather') {
+      if (lastEntry.intent !== 'earthquake' && lastEntry.intent !== 'highest_temp') {
+        intent = lastEntry.intent;
       }
-
-      if (g && g.Magnitude) {
-        const reply = `🚨 **Informasi Gempa Bumi Terkini (BMKG InaTEWS)**
-- **Wilayah:** ${g.Wilayah}
-- **Magnitudo:** M ${g.Magnitude}
-- **Kedalaman:** ${g.Kedalaman}
-- **Waktu:** ${g.Tanggal || ''} ${g.Jam || ''}
-- **Potensi:** ${g.Potensi || 'Tidak berpotensi tsunami'}
-
-Sumber: BMKG (InaTEWS)`;
-        return res.json({ success: true, reply, source: 'BMKG InaTEWS' });
-      }
-      return res.json({ success: true, reply: 'Daftar gempa belum tersedia dari BMKG. Silakan coba kembali beberapa saat lagi.', source: 'BMKG' });
-    } catch (e) {
-      console.error('Error fetching gempa for AI:', e);
-      return res.json({ success: false, reply: 'Maaf, terjadi kesalahan saat mengambil data.' });
+      isFollowUp = true;
+    } else if (isShortFollowUp) {
+      isFollowUp = true;
     }
   }
 
-  // PEMETAAN WAKTU: Tanggal lebih dari sekitar 3 hari ke depan
-  const farFuturePatterns = [
-    /\b(4|5|6|7|8|9|10)\s*hari/i,
-    /minggu\s*depan/i,
-    /bulan\s*depan/i,
-    /pekan\s*depan/i,
-    /tahun\s*depan/i,
-    /hari\s*ke[- ]*(4|5|6|7|8|9|10)/i
-  ];
-  if (farFuturePatterns.some(p => p.test(qLower))) {
-    return res.json({
-      success: true,
-      reply: 'Prakiraan BMKG hanya tersedia sampai sekitar 3 hari ke depan.'
-    });
+  // Standalone multi-day / tomorrow question without follow-up inheritance routes to daily_forecast
+  if (intent === 'general_weather' && (timeScope === 'tomorrow' || timeScope === 'day_after' || timeScope === '72h')) {
+    intent = 'daily_forecast';
   }
 
-  // Parse time intent
-  let isThreeDaysMode = false;
-  let dayOffset = 0;
-  let dayLabel = 'hari ini';
+  return {
+    intent,
+    timeScope,
+    wantsBothClothingAndActivity: hasClothing && hasActivity,
+    isFollowUp
+  };
+}
 
-  if (/\b(3|tiga)\s*hari\b/i.test(qLower) || /beberapa\s*hari\s*ke\s*depan/i.test(qLower)) {
-    isThreeDaysMode = true;
-    dayLabel = '3 hari ke depan';
-  } else if (qLower.includes('lusa') || qLower.includes('besok lusa') || qLower.includes('hari ke-2') || qLower.includes('hari ke 2') || qLower.includes('hari ke-3') || qLower.includes('hari ke 3')) {
-    dayOffset = 2;
-    dayLabel = 'lusa';
-  } else if (qLower.includes('besok') || qLower.includes('esok')) {
-    dayOffset = 1;
-    dayLabel = 'besok';
-  } else {
-    dayOffset = 0;
-    dayLabel = 'hari ini';
+function makeLocationTargetFromEntry(entry, labelOverride = null) {
+  if (!entry || !entry.adm4) return null;
+  const cleanName = labelOverride || entry.name || entry.kotkab || entry.capital || entry.adm4;
+  return {
+    adm4: String(entry.adm4).trim(),
+    name: String(cleanName).replace(/^Kota Adm\.\s*/i, '').trim(),
+    kotkab: entry.kotkab || entry.capital || cleanName,
+    provinsi: entry.provinsi || entry.prov || ''
+  };
+}
+
+function findEntryByAdm4(adm4) {
+  if (!adm4) return null;
+  const code = String(adm4).trim();
+  const fromLocations = LOCATIONS_DATA.find(l => l.adm4 === code);
+  if (fromLocations) return makeLocationTargetFromEntry(fromLocations);
+  const fromCapitals = CAPITALS_FROM_LOCATIONS.find(c => c.adm4 === code);
+  if (fromCapitals) return makeLocationTargetFromEntry(fromCapitals, fromCapitals.capital);
+  const fromWilayah = wilayahList.find(w => w.adm4 === code);
+  if (fromWilayah) return makeLocationTargetFromEntry(fromWilayah);
+  const fromFull = fullWilayahIndex.find(w => w.adm4 === code);
+  if (fromFull) return makeLocationTargetFromEntry({ adm4: fromFull.adm4, name: fromFull.kabupaten || fromFull.kelurahan, kotkab: fromFull.kabupaten, provinsi: fromFull.provinsi });
+  return { adm4: code, name: code, kotkab: code, provinsi: '' };
+}
+
+function resolveSingleLocationText(rawName) {
+  if (!rawName) return null;
+  const q = String(rawName).trim().toLowerCase();
+  if (!q) return null;
+
+  const mergedAliases = { ...INDONESIA_CITY_ALIASES, ...AI_EN_CITY_ALIASES };
+  for (const [alias, adm4] of Object.entries(mergedAliases).sort((a, b) => b[0].length - a[0].length)) {
+    if (q === alias || new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(q)) {
+      return findEntryByAdm4(adm4);
+    }
   }
 
-  // Stopwords cleaning to extract place names
-  const stopwords = [
-    'cuaca', 'prakiraan', 'kondisi', 'suhu', 'hujan', 'derajat', 'kelembapan', 'kelembaban',
-    'hari ini', 'besok', 'lusa', 'besok lusa', 'sekarang', 'saat ini', 'nanti',
-    'pagi ini', 'siang ini', 'sore ini', 'malam ini', 'terkini',
-    'di', 'ke', 'pada', 'untuk', 'dari',
-    'kota', 'kabupaten', 'kab', 'kecamatan', 'kec', 'kelurahan', 'kel', 'desa',
-    'daerah', 'wilayah', 'bagaimana', 'gimana', 'apakah', 'tolong', 'cek', 'info', 'tentang', 'dong',
-    '3 hari', 'tiga hari', 'beberapa hari ke depan', 'ke depan', 'pulau'
+  for (const cap of CAPITALS_FROM_LOCATIONS) {
+    const cName = cap.capital.toLowerCase();
+    const lName = cap.name.toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '');
+    if (q === cName || q === lName || q.includes(cName) || cName.includes(q)) {
+      return makeLocationTargetFromEntry(cap, cap.capital);
+    }
+  }
+
+  for (const loc of LOCATIONS_DATA) {
+    const lName = (loc.name || '').toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '');
+    const lKot = (loc.kotkab || '').toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '');
+    if (q === lName || q === lKot || (q.length >= 4 && (lName.includes(q) || lKot.includes(q)))) {
+      return makeLocationTargetFromEntry(loc);
+    }
+  }
+
+  return null;
+}
+
+function detectIslandOnlyQuery(question, explicitTargets) {
+  if (explicitTargets && explicitTargets.length > 0) return null;
+  const qLower = String(question || '').toLowerCase();
+  const compoundProvinceKeys = [
+    'kalimantan timur', 'kalimantan barat', 'kalimantan selatan', 'kalimantan tengah', 'kalimantan utara',
+    'sumatera utara', 'sumatera barat', 'sumatera selatan',
+    'jawa barat', 'jawa tengah', 'jawa timur',
+    'sulawesi utara', 'sulawesi tengah', 'sulawesi selatan', 'sulawesi tenggara', 'sulawesi barat',
+    'maluku utara', 'west java', 'central java', 'east java', 'north sumatra', 'west sumatra',
+    'south sumatra', 'south sulawesi', 'north sulawesi', 'east kalimantan',
+    'papua barat', 'papua barat daya', 'papua tengah', 'papua pegunungan', 'papua selatan',
+    'nusa tenggara barat', 'nusa tenggara timur'
   ];
+  if (compoundProvinceKeys.some(cp => qLower.includes(cp))) return null;
 
-  let cleaned = qLower;
-  stopwords.forEach(w => {
-    const reg = new RegExp(`\\b${w}\\b`, 'gi');
-    cleaned = cleaned.replace(reg, ' ');
-  });
-  cleaned = cleaned.replace(/[?.,!]/g, ' ').replace(/\s+/g, ' ').trim();
-
-  // ATURAN 3: Pertanyaan tentang pulau (Sumatera, Jawa, Bali & Nusa Tenggara, Kalimantan, Sulawesi, Maluku, Papua)
-  // JANGAN langsung menjawab dengan angka. Tampilkan daftar provinsi di pulau itu sebagai pilihan, dengan nama ibu kota masing-masing, lalu tanya: "Cuaca di provinsi mana yang ingin Anda lihat?"
   const islandAliases = {
     'Sumatera': ['sumatera', 'sumatra'],
     'Jawa': ['jawa', 'java'],
     'Kalimantan': ['kalimantan', 'borneo'],
     'Sulawesi': ['sulawesi', 'celebes'],
     'Maluku': ['maluku'],
-    'Papua': ['papua', 'irian', 'irian jaya'],
-    'Bali & Nusa Tenggara': ['bali & nusa tenggara', 'bali dan nusa tenggara', 'nusa tenggara', 'bali nusa tenggara']
+    'Papua': ['papua', 'irian'],
+    'Bali & Nusa Tenggara': ['bali & nusa tenggara', 'bali dan nusa tenggara', 'nusa tenggara']
+  };
+  for (const [islandName, aliases] of Object.entries(islandAliases)) {
+    if (aliases.some(a => new RegExp(`\\b${a}\\b`, 'i').test(qLower))) {
+      return islandName;
+    }
+  }
+  return null;
+}
+
+function resolveAITargetLocations({ question, intent, contextLocation, location, weatherContext, history }) {
+  const qLower = String(question || '').toLowerCase();
+  const hits = [];
+  const mergedAliases = { ...INDONESIA_CITY_ALIASES, ...AI_EN_CITY_ALIASES };
+
+  const recordHit = (idx, adm4, matchedLen, customLabel = null) => {
+    if (!adm4) return;
+    hits.push({ idx, adm4, matchedLen, customLabel });
   };
 
-  // Provinces that start with island names (to distinguish "Kalimantan Timur" from island "Kalimantan"):
-  const compoundProvinceKeys = [
-    'kalimantan timur', 'kalimantan barat', 'kalimantan selatan', 'kalimantan tengah', 'kalimantan utara',
-    'sumatera utara', 'sumatera barat', 'sumatera selatan',
-    'jawa barat', 'jawa tengah', 'jawa timur',
-    'sulawesi utara', 'sulawesi tengah', 'sulawesi selatan', 'sulawesi tenggara', 'sulawesi barat',
-    'maluku utara',
-    'papua barat', 'papua barat daya', 'papua tengah', 'papua pegunungan', 'papua selatan',
-    'nusa tenggara barat', 'nusa tenggara timur'
-  ];
+  // 1. Scan aliases (ordered longest first to avoid substring overlaps)
+  const sortedAliases = Object.keys(mergedAliases).sort((a, b) => b.length - a.length);
+  const occupiedRanges = [];
+  const overlaps = (start, end) => occupiedRanges.some(([s, e]) => !(end <= s || start >= e));
 
-  const hasCompoundProvince = compoundProvinceKeys.some(cp => qLower.includes(cp));
-
-  if (!hasCompoundProvince) {
-    for (const [islandName, aliases] of Object.entries(islandAliases)) {
-      const isMatch = aliases.some(alias => {
-        const regex = new RegExp(`(^|\\s)${alias}(\\s|$)`, 'i');
-        return regex.test(cleaned) || regex.test(qLower);
-      });
-
-      if (isMatch) {
-        // Retrieve provinces in this island from CAPITALS_FROM_LOCATIONS (using field pulau)
-        const islandCapitals = CAPITALS_FROM_LOCATIONS.filter(c => c.pulau === islandName);
-        const listStr = islandCapitals.map((c, i) => `${i + 1}. ${c.provinsi}: ${c.capital}`).join('\n');
-        const reply = `Berikut adalah ${islandCapitals.length} provinsi di pulau ${islandName} beserta ibu kotanya:\n${listStr}\n\nCuaca di provinsi mana yang ingin Anda lihat?`;
-
-        return res.json({
-          success: true,
-          reply,
-          island: islandName,
-          capitals: islandCapitals.map(c => c.capital)
-        });
+  for (const key of sortedAliases) {
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const reg = new RegExp(`\\b${escaped}\\b`, 'ig');
+    let m;
+    while ((m = reg.exec(qLower)) !== null) {
+      const start = m.index;
+      const end = start + m[0].length;
+      if (!overlaps(start, end)) {
+        occupiedRanges.push([start, end]);
+        recordHit(start, mergedAliases[key], key.length);
       }
     }
   }
 
-  // ATURAN 1, 2, 4: Matching Provincial Capital or Province
-  let chosenCapital = null;
-  let isProvinceQuery = false;
+  // 2. Scan LOCATIONS_DATA & CAPITALS_FROM_LOCATIONS
+  for (const entry of [...CAPITALS_FROM_LOCATIONS, ...LOCATIONS_DATA]) {
+    const candidates = [
+      entry.capital,
+      (entry.name || '').replace(/^Kota Adm\.\s*|^Kota\s+|^Kab\.\s+/i, '').replace(/\s*\([^)]*\)/, ''),
+      (entry.kotkab || '').replace(/^Kota Adm\.\s*|^Kota\s+|^Kab\.\s+/i, ''),
+      entry.provinsi
+    ].filter(c => c && c.length >= 4);
 
-  // 1. Direct match with capital name (e.g. "Bandar Lampung", "Semarang", "Banda Aceh", etc.)
-  for (const cap of CAPITALS_FROM_LOCATIONS) {
-    const cLower = cap.capital.toLowerCase();
-    const cNameLower = cap.name.toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '');
-    const cleanNoKota = cleaned.replace(/^kota\s+|^kab\.\s+/i, '').trim();
-
-    if (
-      cleanNoKota === cLower ||
-      cleanNoKota === cNameLower ||
-      new RegExp(`(^|\\s)${cLower}(\\s|$)`, 'i').test(cleaned) ||
-      new RegExp(`(^|\\s)${cNameLower}(\\s|$)`, 'i').test(cleaned) ||
-      new RegExp(`(^|\\s)${cLower}(\\s|$)`, 'i').test(qLower)
-    ) {
-      chosenCapital = cap;
-      break;
+    for (const c of candidates) {
+      const cLow = c.toLowerCase();
+      const reg = new RegExp(`\\b${cLow.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'ig');
+      let m;
+      while ((m = reg.exec(qLower)) !== null) {
+        const start = m.index;
+        const end = start + m[0].length;
+        if (!overlaps(start, end)) {
+          occupiedRanges.push([start, end]);
+          recordHit(start, entry.adm4, cLow.length);
+        }
+      }
     }
   }
 
-  // Special alias for Jakarta (Gambir)
-  if (!chosenCapital && (cleaned === 'jakarta' || /\bjakarta\b/i.test(cleaned) || /\bjakarta\b/i.test(qLower))) {
-    chosenCapital = CAPITALS_FROM_LOCATIONS.find(c => c.capital === 'Jakarta Pusat');
-  }
+  // 3. Scan fullWilayahIndex only for remaining cleaned tokens if nothing matched yet (supports 83k kelurahan/kota)
+  if (hits.length === 0 && Array.isArray(fullWilayahIndex) && fullWilayahIndex.length > 0) {
+    const stopSet = new Set([
+      'cuaca', 'prakiraan', 'kondisi', 'suhu', 'hujan', 'potensi', 'peluang', 'curah', 'angin',
+      'kelembapan', 'kelembaban', 'pakaian', 'aktivitas', 'rekomendasi', 'bandingkan', 'komparasi',
+      'hari', 'ini', 'besok', 'lusa', 'sekarang', 'saat', 'nanti', 'malam', 'pagi', 'siang', 'sore',
+      'dalam', 'jam', 'depan', 'kota', 'wilayah', 'daerah', 'lain', 'lainnya', 'indonesia', 'bmkg',
+      'weather', 'forecast', 'rain', 'potential', 'probability', 'next', 'hours', 'today', 'tomorrow',
+      'clothing', 'activity', 'activities', 'safe', 'outdoor', 'compare', 'regions', 'other', 'with',
+      'between', 'hottest', 'highest', 'temperature', 'wind', 'humidity', 'current', 'what', 'how',
+      'which', 'city', 'yang', 'cocok', 'untuk', 'dengan', 'dan', 'atau', 'apa', 'mana', 'berikan', 'saran'
+    ]);
+    const cleanTokens = qLower
+      .replace(/[?.,!/:;()]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 4 && !stopSet.has(w) && !/^\d+$/.test(w));
 
-  // 2. Match with province name (e.g. "Kalimantan Timur", "Lampung", "Jawa Barat")
-  if (!chosenCapital) {
-    for (const cap of CAPITALS_FROM_LOCATIONS) {
-      const pLower = cap.provinsi.toLowerCase();
-      const pClean = pLower.replace(/^(d\.i\.|dki)\s+/i, '');
-
-      if (
-        cleaned === pLower ||
-        cleaned === pClean ||
-        new RegExp(`(^|\\s)${pLower}(\\s|$)`, 'i').test(cleaned) ||
-        new RegExp(`(^|\\s)${pClean}(\\s|$)`, 'i').test(cleaned) ||
-        new RegExp(`(^|\\s)${pLower}(\\s|$)`, 'i').test(qLower)
-      ) {
-        chosenCapital = cap;
-        isProvinceQuery = true;
+    for (const token of cleanTokens) {
+      const exactMatches = fullWilayahIndex.filter(w => {
+        const kel = (w.kelurahan || '').toLowerCase();
+        const kec = (w.kecamatan || '').toLowerCase();
+        const kab = (w.kabupaten || '').toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '');
+        return kel === token || kec === token || kab === token;
+      });
+      if (exactMatches.length > 0) {
+        const best = exactMatches.find(m => (m.kabupaten || '').toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '') === token)
+          || exactMatches.find(m => (m.kecamatan || '').toLowerCase() === token)
+          || exactMatches[0];
+        recordHit(qLower.indexOf(token), best.adm4, token.length, best.kabupaten || best.kelurahan);
         break;
       }
     }
   }
 
-  // ATURAN 5: Pertanyaan tentang kota atau kabupaten yang bukan ibu kota provinsi (misalnya "Sukarame", "Balikpapan")
-  // Jawab: "Saya hanya menjawab cuaca untuk ibu kota provinsi. Untuk [nama kota], coba tanyakan ibu kota [nama provinsi], yaitu [nama ibu kota]."
-  if (!chosenCapital) {
-    let nonCapitalMatch = null;
+  hits.sort((a, b) => a.idx - b.idx);
+  const explicitTargets = [];
+  const seenAdm4 = new Set();
+  for (const h of hits) {
+    if (!seenAdm4.has(h.adm4)) {
+      seenAdm4.add(h.adm4);
+      const target = findEntryByAdm4(h.adm4);
+      if (target) explicitTargets.push(target);
+    }
+  }
 
-    // Check in LOCATIONS_DATA first
-    const foundLoc = LOCATIONS_DATA.find(l => {
-      const lName = l.name.toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '');
-      const lKot = (l.kotkab || '').toLowerCase().replace(/^kota\s+|^kab\.\s+/i, '');
-      return lName.includes(cleaned) || lKot.includes(cleaned) || (cleaned.length > 2 && lName.startsWith(cleaned));
+  // Check generic island query only when no city/province matched and intent is general/current
+  const islandName = (intent === 'general_weather' || intent === 'current_weather' || intent === 'daily_forecast')
+    ? detectIslandOnlyQuery(question, explicitTargets)
+    : null;
+  if (islandName) {
+    return { targets: [], explicitCount: 0, islandName, usedActiveFallback: false };
+  }
+
+  // If explicit targets found, handle comparison with "other regions" if only 1 target specified
+  if (explicitTargets.length > 0) {
+    if (intent === 'comparison' && explicitTargets.length === 1) {
+      const otherAdm4 = explicitTargets[0].adm4 === '35.78.01.1001' ? '31.71.01.1001' : '35.78.01.1001';
+      const fallbackSecond = findEntryByAdm4(otherAdm4);
+      if (fallbackSecond && !seenAdm4.has(fallbackSecond.adm4)) {
+        explicitTargets.push(fallbackSecond);
+      }
+    }
+    return { targets: explicitTargets.slice(0, 3), explicitCount: explicitTargets.length, islandName: null, usedActiveFallback: false };
+  }
+
+  // Fallback to active frontend location -> contextLocation -> history
+  const activeCandidates = [];
+  if (location && location.adm4) {
+    activeCandidates.push(makeLocationTargetFromEntry(location, location.name || location.kotkab));
+  } else if (weatherContext?.lokasi?.adm4) {
+    const wl = weatherContext.lokasi;
+    activeCandidates.push(makeLocationTargetFromEntry(wl, wl.kotkab || wl.desa));
+  }
+  if (activeCandidates.length === 0 && contextLocation) {
+    const resolvedCtx = resolveSingleLocationText(contextLocation);
+    if (resolvedCtx) activeCandidates.push(resolvedCtx);
+  }
+  if (activeCandidates.length === 0 && Array.isArray(history)) {
+    const prevWithLoc = [...history].reverse().find(h => h && h.contextLocation);
+    if (prevWithLoc) {
+      const resolvedHist = resolveSingleLocationText(prevWithLoc.contextLocation);
+      if (resolvedHist) activeCandidates.push(resolvedHist);
+    }
+  }
+
+  if (intent === 'comparison' && activeCandidates.length === 1) {
+    const base = activeCandidates[0];
+    const altAdm4 = base.adm4 === '35.78.01.1001' ? '31.71.01.1001' : '35.78.01.1001';
+    const alt = findEntryByAdm4(altAdm4);
+    if (alt) activeCandidates.push(alt);
+  }
+
+  return {
+    targets: activeCandidates.slice(0, 2),
+    explicitCount: 0,
+    islandName: null,
+    usedActiveFallback: activeCandidates.length > 0
+  };
+}
+
+function summarizeSlotGroupAI(slots, lang) {
+  if (!Array.isArray(slots) || slots.length === 0) return null;
+  const temps = slots.map(s => Number(s.t)).filter(Number.isFinite);
+  const humidities = slots.map(s => Number(s.hu)).filter(Number.isFinite);
+  const winds = slots.map(s => Number(s.ws)).filter(Number.isFinite);
+  const tps = slots.map(s => (s.tp !== undefined && s.tp !== null && Number.isFinite(Number(s.tp)) ? Number(s.tp) : null));
+  const validTps = tps.filter(v => v !== null);
+  const rainySlots = slots
+    .filter(s => (Number(s.tp) > 0) || /hujan|petir/i.test(s.weather_desc || ''))
+    .map(s => ({
+      time: String(s.local_datetime || s.datetime || '').slice(11, 16) || '-',
+      desc: translateWeatherDescAI(s.weather_desc, lang),
+      tp: s.tp !== undefined && s.tp !== null ? Number(s.tp) : null,
+      hu: s.hu !== undefined ? Number(s.hu) : null
+    }));
+
+  const descCounts = {};
+  slots.forEach(s => {
+    const d = s.weather_desc || '';
+    if (d) descCounts[d] = (descCounts[d] || 0) + 1;
+  });
+  const dominantRaw = Object.keys(descCounts).sort((a, b) => descCounts[b] - descCounts[a])[0] || slots[0].weather_desc || '';
+
+  return {
+    slotCount: slots.length,
+    minTemp: temps.length ? Math.min(...temps) : null,
+    maxTemp: temps.length ? Math.max(...temps) : null,
+    avgTemp: temps.length ? Math.round((temps.reduce((a, b) => a + b, 0) / temps.length) * 10) / 10 : null,
+    minHu: humidities.length ? Math.min(...humidities) : null,
+    maxHu: humidities.length ? Math.max(...humidities) : null,
+    avgHu: humidities.length ? Math.round(humidities.reduce((a, b) => a + b, 0) / humidities.length) : null,
+    maxWind: winds.length ? Math.max(...winds) : null,
+    minWind: winds.length ? Math.min(...winds) : null,
+    totalRainMm: validTps.length ? Math.round(validTps.reduce((a, b) => a + b, 0) * 10) / 10 : null,
+    maxRainMm: validTps.length ? Math.max(...validTps) : null,
+    hasRainfallData: validTps.length > 0,
+    rainySlots,
+    dominantDesc: translateWeatherDescAI(dominantRaw, lang),
+    firstDate: String(slots[0].local_datetime || slots[0].datetime || '').slice(0, 10) || null
+  };
+}
+
+async function fetchNormalizedWeatherForAI(target, frontendWeatherContext, lang) {
+  if (!target || !target.adm4) return null;
+
+  let rawData = null;
+  const fcAdm4 = frontendWeatherContext?.lokasi?.adm4;
+  if (
+    fcAdm4 &&
+    fcAdm4 === target.adm4 &&
+    frontendWeatherContext.current &&
+    Array.isArray(frontendWeatherContext.days) &&
+    frontendWeatherContext.days.length > 0
+  ) {
+    rawData = frontendWeatherContext;
+  } else {
+    const fetched = await getWeatherDataForAdm4(target.adm4, false);
+    if (fetched && fetched.status === 'ok' && fetched.current) {
+      rawData = fetched;
+    }
+  }
+
+  if (!rawData || !rawData.current) {
+    return {
+      target,
+      available: false
+    };
+  }
+
+  const cur = rawData.current || {};
+  const days = Array.isArray(rawData.days) ? rawData.days : [];
+  const allForecast = Array.isArray(rawData.forecast) && rawData.forecast.length > 0
+    ? rawData.forecast
+    : days.flat();
+
+  const nowMs = Date.now();
+  let startIdx = 0;
+  if (allForecast.length > 0) {
+    const futureIdx = allForecast.findIndex(s => {
+      const ms = new Date(s.utc_datetime || s.datetime).getTime();
+      return Number.isFinite(ms) && ms >= nowMs - (3 * 60 * 60 * 1000);
+    });
+    startIdx = futureIdx >= 0 ? futureIdx : 0;
+  }
+  const next24hSlots = allForecast.slice(startIdx, startIdx + 8);
+
+  const curTemp = Number.isFinite(Number(cur.t)) ? Number(cur.t) : null;
+  const curHu = Number.isFinite(Number(cur.hu)) ? Number(cur.hu) : null;
+  const curWs = Number.isFinite(Number(cur.ws)) ? Number(cur.ws) : null;
+  const curTp = cur.tp !== undefined && cur.tp !== null && Number.isFinite(Number(cur.tp)) ? Number(cur.tp) : null;
+  const curTcc = cur.tcc !== undefined && cur.tcc !== null && Number.isFinite(Number(cur.tcc)) ? Number(cur.tcc) : null;
+
+  return {
+    target: {
+      adm4: target.adm4,
+      name: target.name || rawData.lokasi?.kotkab || rawData.lokasi?.desa || target.adm4,
+      kotkab: rawData.lokasi?.kotkab || target.kotkab || target.name,
+      provinsi: rawData.lokasi?.provinsi || target.provinsi || ''
+    },
+    available: true,
+    lastUpdatedFormatted: rawData.lastUpdatedFormatted || null,
+    current: {
+      temp: curTemp,
+      feelsLike: cur.feels_like !== undefined ? Number(cur.feels_like) : (curTemp !== null ? calculateFeelsLike(curTemp, curHu || 70, curWs || 5) : null),
+      dewPoint: cur.dew_point !== undefined ? Number(cur.dew_point) : (curTemp !== null && curHu !== null ? calculateDewPoint(curTemp, curHu) : null),
+      humidity: curHu,
+      windSpeed: curWs,
+      windDir: cur.wd || null,
+      tp: curTp,
+      cloudCover: curTcc,
+      weatherDesc: translateWeatherDescAI(cur.weather_desc, lang),
+      rawWeatherDesc: cur.weather_desc || '',
+      localDatetime: cur.local_datetime || cur.datetime || null
+    },
+    next24h: summarizeSlotGroupAI(next24hSlots, lang),
+    today: summarizeSlotGroupAI(days[0] || next24hSlots, lang),
+    tomorrow: summarizeSlotGroupAI(days[1] || [], lang),
+    dayAfter: summarizeSlotGroupAI(days[2] || [], lang)
+  };
+}
+
+function deriveClothingAndActivityHints(locSummary, lang) {
+  if (!locSummary || !locSummary.available) return { clothing: [], activities: [] };
+  const c = locSummary.current;
+  const n24 = locSummary.next24h || locSummary.today || {};
+  const hasRain = (c.tp && c.tp > 0) || (n24.rainySlots && n24.rainySlots.length > 0) || /hujan|rain|thunder/i.test(c.rawWeatherDesc);
+  const maxT = n24.maxTemp ?? c.temp ?? 28;
+  const minT = n24.minTemp ?? c.temp ?? 24;
+  const maxW = n24.maxWind ?? c.windSpeed ?? 5;
+  const hu = c.humidity ?? n24.avgHu ?? 75;
+
+  if (lang === 'en') {
+    const clothing = [];
+    if (maxT >= 32) {
+      clothing.push('Light, breathable cotton or linen clothing in light colors to manage peak heat.');
+    } else if (minT <= 22) {
+      clothing.push('Breathable layers with a light jacket or cardigan for cooler hours.');
+    } else {
+      clothing.push('Comfortable breathable casual wear suited for warm tropical temperatures.');
+    }
+    if (hasRain) {
+      clothing.push('Carry a compact umbrella or waterproof outer layer and wear slip-resistant footwear.');
+    } else if (maxT >= 30) {
+      clothing.push('Sunglasses, cap, and UV protection for midday sun exposure.');
+    }
+    if (hu >= 80) {
+      clothing.push('Moisture-wicking fabrics help stay comfortable under high humidity.');
+    }
+
+    const activities = [];
+    if (hasRain) {
+      activities.push('Indoor exercise, museum/mall visits, or flexible café work during expected rain windows.');
+      activities.push('Schedule outdoor errands or jogging during dry/cloudy intervals before or after rain slots.');
+    } else if (maxT >= 33) {
+      activities.push('Early morning or late afternoon outdoor sports/walking (avoid 11:00–15:00 peak heat & UV).');
+      activities.push('Hydration breaks every 20–30 minutes if working outdoors.');
+    } else {
+      activities.push('Outdoor jogging, cycling, sightseeing, and laundry drying are generally favorable today.');
+    }
+    if (maxW >= 25) {
+      activities.push(`Exercise caution on two-wheelers or near coastal/exposed areas as wind gusts reach ${maxW} km/h.`);
+    }
+    return { clothing, activities };
+  }
+
+  const clothing = [];
+  if (maxT >= 32) {
+    clothing.push('Pakaian berbahan katun atau linen yang ringan, tipis, dan menyerap keringat untuk menghadapi suhu puncak siang.');
+  } else if (minT <= 22) {
+    clothing.push('Baju berlapis nyaman dengan jaket tipis atau kardigan untuk jam pagi/malam yang lebih sejuk.');
+  } else {
+    clothing.push('Pakaian kasual yang sejuk dan nyaman (katun/rayon) sesuai karakter tropis hari ini.');
+  }
+  if (hasRain) {
+    clothing.push('Siapkan payung lipat atau jas hujan portabel serta alas kaki antiselip.');
+  } else if (maxT >= 30) {
+    clothing.push('Tambahkan topi, kacamata hitam, atau tabir surya saat beraktivitas di luar pada siang hari.');
+  }
+  if (hu >= 80) {
+    clothing.push('Pilih kain yang cepat kering (quick-dry/katun ringan) karena kelembapan udara cukup tinggi.');
+  }
+
+  const activities = [];
+  if (hasRain) {
+    activities.push('Prioritaskan aktivitas dalam ruangan atau pilih jendela waktu non-hujan untuk perjalanan dan olahraga.');
+    activities.push('Saat berkendara ketika hujan turun, kurangi kecepatan dan jaga jarak aman pengereman.');
+  } else if (maxT >= 33) {
+    activities.push('Lakukan lari, bersepeda, atau aktivitas luar ruangan pada pagi (< 09.00) atau sore (> 16.00) agar terhindar dari panas terik.');
+    activities.push('Cuaca kering mendukung penjemuran pakaian dan perjalanan darat yang lancar.');
+  } else {
+    activities.push('Jogging ringan, bersepeda, aktivitas keluarga di luar ruang, maupun menjemur pakaian relatif kondusif hari ini.');
+  }
+  if (maxW >= 25) {
+    activities.push(`Waspadai hembusan angin hingga ${maxW} km/jam saat berkendara atau berada dekat pepohonan tinggi.`);
+  }
+  return { clothing, activities };
+}
+
+async function callGroqAssistant({ question, lang, intent, timeScope, structuredContext, history }) {
+  if (!LLM_API_KEY) return null;
+  const targetLangLabel = lang === 'en' ? 'English' : 'Bahasa Indonesia';
+  const systemPrompt = [
+    `You are AeroAI, SKYVANTA's Indonesian meteorological & disaster-preparedness assistant powered exclusively by official BMKG data.`,
+    `STRICT RULES:`,
+    `1. LANGUAGE: Respond ONLY in ${targetLangLabel}. Never mix languages in prose.`,
+    `2. ZERO FABRICATION: Cite ONLY verified facts from STRUCTURED_BMKG_CONTEXT below. Never invent numbers, temperatures, cities, rankings, or timestamps. If a field or dataset is unavailable, state it honestly.`,
+    `3. RAINFALL VS PROBABILITY: BMKG public forecast data provides rainfall volume in millimeters (tp, mm) and weather conditions (weather_desc), NOT a numeric rain probability percentage (%). NEVER equate mm to % or invent a % rain probability; clearly explain rain outlook using BMKG conditions, rainy 3-hour time windows, and rainfall volume in mm.`,
+    `4. INTENT PRECISION: Directly answer the specific user intent ("${intent}", timeScope "${timeScope}") in the first paragraph without dumping unrelated boilerplate. Keep formatting concise and readable with clear units (°C, mm, km/h or km/jam, %) and end with "${lang === 'en' ? 'Source: BMKG' : 'Sumber: BMKG'}".`
+  ].join('\n');
+
+  const trimmedHistory = Array.isArray(history)
+    ? history.slice(-6).filter(m => m && (m.role === 'user' || m.role === 'assistant') && m.content).map(m => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content).slice(0, 800)
+      }))
+    : [];
+
+  const userMessage = `QUESTION (${targetLangLabel}): ${question}\n\nSTRUCTURED_BMKG_CONTEXT:\n${JSON.stringify(structuredContext)}`;
+
+  try {
+    const endpoint = `${LLM_BASE_URL.replace(/\/+$/, '')}/chat/completions`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${LLM_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: LLM_MODEL,
+        temperature: 0.25,
+        max_tokens: 750,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...trimmedHistory,
+          { role: 'user', content: userMessage }
+        ]
+      }),
+      signal: AbortSignal.timeout(8000)
     });
 
-    if (foundLoc) {
-      const cap = CAPITALS_FROM_LOCATIONS.find(c => c.provinsi.toLowerCase() === foundLoc.provinsi.toLowerCase());
-      if (cap) {
-        const rawName = foundLoc.name.replace(/^Kota\s+|^Kab\.\s+/i, '').replace(/\s*\([^)]*\)/, '');
-        nonCapitalMatch = {
-          name: rawName,
-          provinsi: foundLoc.provinsi,
-          capital: cap.capital
-        };
+    if (!response.ok) {
+      console.warn(`AeroAI Groq HTTP ${response.status}; falling back to deterministic engine.`);
+      return null;
+    }
+
+    const payload = await response.json();
+    const content = payload?.choices?.[0]?.message?.content?.trim();
+    return content && content.length > 0 ? content : null;
+  } catch (err) {
+    console.warn('AeroAI Groq unavailable/timeout; falling back to deterministic engine:', err.message);
+    return null;
+  }
+}
+
+function buildRuleBasedAIReply({ intent, timeScope, wantsBothClothingAndActivity, lang, ctx }) {
+  const isEn = lang === 'en';
+  const srcLine = isEn ? 'Source: BMKG' : 'Sumber: BMKG';
+  const fmtVal = (v, unit) => (v !== null && v !== undefined && Number.isFinite(Number(v)) ? `${v}${unit}` : (isEn ? 'Unavailable' : 'Tidak tersedia'));
+
+  if (timeScope === 'past') {
+    return isEn
+      ? `Historical weather archives (yesterday) are not available via the current BMKG public forecast feed. I can analyze live conditions and up to 3-day forecasts instead.\n\n${srcLine}`
+      : `Data arsip cuaca kemarin belum tersedia pada umpan prakiraan BMKG saat ini. Saya dapat menganalisis kondisi real-time dan prakiraan hingga 3 hari ke depan.\n\n${srcLine}`;
+  }
+
+  if (timeScope === 'beyond_limit') {
+    return isEn
+      ? `Official BMKG public weather forecasts only cover up to 3 days (72 hours) ahead. Extended multi-week forecasts are not available from this feed.\n\n${srcLine}`
+      : `Prakiraan cuaca resmi BMKG hanya tersedia hingga sekitar 3 hari (72 jam) ke depan. Data di luar rentang tersebut belum tersedia.\n\n${srcLine}`;
+  }
+
+  if (ctx.islandName) {
+    const islandCapitals = CAPITALS_FROM_LOCATIONS.filter(c => c.pulau === ctx.islandName);
+    const listStr = islandCapitals.map((c, i) => `${i + 1}. ${c.provinsi}: ${c.capital}`).join('\n');
+    return isEn
+      ? `There are ${islandCapitals.length} provinces in ${ctx.islandName} with provincial capitals:\n${listStr}\n\nWhich city or province would you like me to check?`
+      : `Berikut adalah ${islandCapitals.length} provinsi di pulau ${ctx.islandName} beserta ibu kotanya:\n${listStr}\n\nCuaca di provinsi atau kota mana yang ingin Anda lihat?`;
+  }
+
+  if (intent === 'earthquake') {
+    const g = ctx.gempa;
+    if (!g || !g.Magnitude) {
+      return isEn
+        ? `Latest BMKG earthquake data is temporarily unavailable. Please try again shortly or inspect the Earthquake & InaTEWS tab.\n\n${srcLine} (InaTEWS)`
+        : `Data gempa BMKG terkini sedang belum tersedia. Silakan coba kembali beberapa saat lagi atau buka tab Gempa Bumi.\n\n${srcLine} (InaTEWS)`;
+    }
+    return isEn
+      ? `🚨 **Latest BMKG Earthquake Update (InaTEWS)**\n- **Region:** ${g.Wilayah}\n- **Magnitude:** M ${g.Magnitude}\n- **Depth:** ${g.Kedalaman}\n- **Origin Time:** ${g.Tanggal || ''} ${g.Jam || ''}\n- **Tsunami Potential:** ${g.Potensi || 'No tsunami potential'}\n${g.Dirasakan ? `- **Felt (MMI):** ${g.Dirasakan}\n` : ''}\n${srcLine} (InaTEWS)`
+      : `🚨 **Informasi Gempa Bumi Terkini (BMKG InaTEWS)**\n- **Wilayah:** ${g.Wilayah}\n- **Magnitudo:** M ${g.Magnitude}\n- **Kedalaman:** ${g.Kedalaman}\n- **Waktu Kejadian:** ${g.Tanggal || ''} ${g.Jam || ''}\n- **Potensi Tsunami:** ${g.Potensi || 'Tidak berpotensi tsunami'}\n${g.Dirasakan ? `- **Dirasakan (MMI):** ${g.Dirasakan}\n` : ''}\n${srcLine} (InaTEWS)`;
+  }
+
+  if (intent === 'highest_temp') {
+    const nat = ctx.nationalCapitals;
+    if (!nat || !Array.isArray(nat.topHot) || nat.topHot.length === 0) {
+      return isEn
+        ? `Live temperature readings across Indonesia's 38 provincial capitals are temporarily unavailable from BMKG.\n\n${srcLine}`
+        : `Data suhu serentak untuk 38 ibu kota provinsi Indonesia sedang belum dapat dimuat dari BMKG. Silakan coba sesaat lagi.\n\n${srcLine}`;
+    }
+    const leader = nat.topHot[0];
+    const rankingLines = nat.topHot.slice(0, 5).map((c, idx) =>
+      `${idx + 1}. **${c.name}** (${c.prov}): **${c.temp}°C** · ${translateWeatherDescAI(c.weatherDesc, lang)} (${isEn ? 'Humidity' : 'Kelembapan'} ${c.humidity ?? '-'}%)`
+    ).join('\n');
+
+    return isEn
+      ? `🔥 **Highest Observed Temperature Across Indonesia (BMKG 38 Provincial Capitals)**\nBased on **${nat.liveCount} of ${nat.totalCount}** verified provincial stations available right now, the highest temperature is in **${leader.name} (${leader.prov})** at **${leader.temp}°C** (${translateWeatherDescAI(leader.weatherDesc, 'en')}).\n\n**Top 5 Warmest Provincial Capitals:**\n${rankingLines}\n\n${srcLine}`
+      : `🔥 **Suhu Tertinggi di Indonesia (Data BMKG Ibukota Provinsi)**\nBerdasarkan **${nat.liveCount} dari ${nat.totalCount}** stasiun ibu kota provinsi dengan data BMKG aktif saat ini, suhu tertinggi tercatat di **${leader.name} (${leader.prov})** sebesar **${leader.temp}°C** (${translateWeatherDescAI(leader.weatherDesc, 'id')}).\n\n**5 Kota Terpanas Saat Ini:**\n${rankingLines}\n\n${srcLine}`;
+  }
+
+  if (intent === 'comparison') {
+    const locs = (ctx.locations || []).filter(Boolean);
+    const valid = locs.filter(l => l.available);
+    if (locs.length < 2) {
+      return isEn
+        ? `Please mention at least two regions you would like me to compare (for example: "Compare Central Jakarta and Surabaya").\n\n${srcLine}`
+        : `Silakan sebutkan dua wilayah yang ingin dibandingkan (contoh: "Bandingkan cuaca Jakarta Pusat dan Surabaya").`;
+    }
+    if (valid.length === 0) {
+      return isEn
+        ? `BMKG weather data for the requested comparison locations is currently unavailable.\n\n${srcLine}`
+        : `Data cuaca BMKG untuk wilayah pembanding tersebut sedang tidak tersedia.\n\n${srcLine}`;
+    }
+    const lines = locs.map((l) => {
+      if (!l.available) {
+        return isEn ? `- **${l.target.name}:** BMKG data unavailable` : `- **${l.target.name}:** Data BMKG belum tersedia`;
+      }
+      const c = l.current;
+      const t = l.today || {};
+      const rangeStr = t.minTemp !== null && t.maxTemp !== null ? `${t.minTemp}–${t.maxTemp}°C` : fmtVal(c.temp, '°C');
+      const rainMm = c.tp !== null ? `${c.tp} mm` : (t.totalRainMm !== null ? `${t.totalRainMm} mm` : '0 mm');
+      return isEn
+        ? `- **${l.target.name}** (${l.target.provinsi}): **${fmtVal(c.temp, '°C')}** (${c.weatherDesc}), Today's Range ${rangeStr}, Humidity ${fmtVal(c.humidity, '%')}, Wind ${fmtVal(c.windSpeed, ' km/h')}, Rainfall ${rainMm}`
+        : `- **${l.target.name}** (${l.target.provinsi}): **${fmtVal(c.temp, '°C')}** (${c.weatherDesc}), Rentang Hari Ini ${rangeStr}, Kelembapan ${fmtVal(c.humidity, '%')}, Angin ${fmtVal(c.windSpeed, ' km/jam')}, Curah Hujan ${rainMm}`;
+    }).join('\n');
+
+    let summaryNote = '';
+    if (valid.length >= 2 && valid[0].current.temp !== null && valid[1].current.temp !== null) {
+      const a = valid[0];
+      const b = valid[1];
+      const diff = Math.round(Math.abs(a.current.temp - b.current.temp) * 10) / 10;
+      if (diff === 0) {
+        summaryNote = isEn
+          ? `\n\nBoth cities are currently at the same temperature (${a.current.temp}°C).`
+          : `\n\nKeduanya saat ini mencatat suhu yang sama (${a.current.temp}°C).`;
+      } else {
+        const warmer = a.current.temp > b.current.temp ? a.target.name : b.target.name;
+        const cooler = a.current.temp > b.current.temp ? b.target.name : a.target.name;
+        summaryNote = isEn
+          ? `\n\n**Key Contrast:** ${warmer} is warmer than ${cooler} by **${diff}°C** right now.`
+          : `\n\n**Ringkasan Perbandingan:** ${warmer} lebih hangat **${diff}°C** dibanding ${cooler} saat ini.`;
       }
     }
 
-    // Check in fullWilayahIndex (e.g. Sukarame, Sepaku, dll.)
-    if (!nonCapitalMatch && fullWilayahIndex && fullWilayahIndex.length) {
-      const matches = fullWilayahIndex.filter(w => {
-        const kel = w.kelurahan.toLowerCase();
-        const kec = w.kecamatan.toLowerCase();
-        const kab = w.kabupaten.toLowerCase();
-        return kel === cleaned || kec === cleaned || kab.includes(cleaned);
-      });
+    const header = isEn
+      ? `⚖️ **BMKG Weather Comparison: ${locs.map(l => l.target.name).join(' vs ')}**`
+      : `⚖️ **Perbandingan Cuaca BMKG: ${locs.map(l => l.target.name).join(' vs ')}**`;
 
-      if (matches.length > 0) {
-        // Prioritize match where kec and kel match, or where kabupaten matches
-        let best = matches[0];
-        const doubleMatch = matches.find(m => m.kelurahan.toLowerCase() === cleaned && m.kecamatan.toLowerCase() === cleaned);
-        if (doubleMatch) best = doubleMatch;
+    return `${header}\n${lines}${summaryNote}\n\n${srcLine}`;
+  }
 
-        const cap = CAPITALS_FROM_LOCATIONS.find(c => c.provinsi.toLowerCase() === best.provinsi.toLowerCase());
-        if (cap) {
-          const properName = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-          nonCapitalMatch = {
-            name: properName,
-            provinsi: best.provinsi,
-            capital: cap.capital
-          };
-        }
-      }
+  const primary = (ctx.locations && ctx.locations[0]) || null;
+  if (!primary) {
+    return isEn
+      ? `Which city or region in Indonesia would you like me to analyze? You can select a city in the dashboard or mention a city name in your question.`
+      : `Wilayah atau kota mana di Indonesia yang ingin Anda tanyakan? Silakan pilih lokasi aktif atau sebutkan nama kota pada pertanyaan Anda.`;
+  }
+  if (!primary.available) {
+    return isEn
+      ? `BMKG weather data for **${primary.target.name}** (ADM4: ${primary.target.adm4}) is currently unavailable or timed out. Please try refreshing or picking a nearby station.\n\n${srcLine}`
+      : `Data cuaca BMKG untuk **${primary.target.name}** (ADM4: ${primary.target.adm4}) sedang tidak tersedia. Silakan coba segarkan data atau pilih stasiun terdekat.\n\n${srcLine}`;
+  }
+
+  const locTitle = primary.target.provinsi ? `${primary.target.name}, ${primary.target.provinsi}` : primary.target.name;
+  const cur = primary.current;
+  const n24 = primary.next24h;
+  const today = primary.today;
+  const tomorrow = primary.tomorrow;
+  const dayAfter = primary.dayAfter;
+  const updNote = primary.lastUpdatedFormatted
+    ? (isEn ? `Updated: ${primary.lastUpdatedFormatted}` : `Diperbarui: ${primary.lastUpdatedFormatted}`)
+    : '';
+
+  if (intent === 'rain_probability') {
+    const scopeSummary = timeScope === 'tomorrow' && tomorrow ? tomorrow : (n24 || today);
+    if (!scopeSummary) {
+      return isEn
+        ? `Next 24-hour BMKG forecast slots for **${locTitle}** are currently unavailable.\n\n${srcLine}`
+        : `Slot prakiraan BMKG 24 jam ke depan untuk **${locTitle}** sedang belum tersedia.\n\n${srcLine}`;
+    }
+    const periodLabel = timeScope === 'tomorrow'
+      ? (isEn ? 'Tomorrow' : 'Besok')
+      : (isEn ? 'Next 24 Hours' : '24 Jam ke Depan');
+    const rainy = scopeSummary.rainySlots || [];
+    const totalMm = scopeSummary.totalRainMm !== null ? `${scopeSummary.totalRainMm} mm` : (isEn ? 'not reported' : 'tidak dilaporkan');
+
+    if (rainy.length > 0) {
+      const slotLines = rainy.slice(0, 5).map(s =>
+        `- **${s.time}**: ${s.desc}${s.tp !== null ? ` (${s.tp} mm)` : ''}${s.hu !== null ? ` · ${isEn ? 'Humidity' : 'Kelembapan'} ${s.hu}%` : ''}`
+      ).join('\n');
+      return isEn
+        ? `🌧️ **Rain Outlook (${periodLabel}) — ${locTitle}**\nRain conditions appear in **${rainy.length} of ${scopeSummary.slotCount}** 3-hour BMKG forecast windows (accumulated rainfall volume: **${totalMm}**).\n\n**Windows with Rain Potential:**\n${slotLines}\n\n*Note: BMKG public forecasts report expected conditions and rainfall volume in millimeters (mm) rather than numeric % probabilities.*\n${updNote ? `${updNote} · ` : ''}${srcLine}`
+        : `🌧️ **Potensi Hujan (${periodLabel}) — ${locTitle}**\nKondisi hujan terpantau pada **${rainy.length} dari ${scopeSummary.slotCount}** slot prakiraan 3-jam BMKG (total akumulasi curah hujan: **${totalMm}**).\n\n**Jendela Waktu Berpotensi Hujan:**\n${slotLines}\n\n*Catatan: Data publik BMKG menyajikan deskripsi cuaca dan volume curah hujan dalam milimeter (mm), bukan angka persentase peluang (%) hujan.*\n${updNote ? `${updNote} · ` : ''}${srcLine}`;
     }
 
-    if (nonCapitalMatch) {
-      return res.json({
-        success: true,
-        reply: `Saya hanya menjawab cuaca untuk ibu kota provinsi. Untuk ${nonCapitalMatch.name}, coba tanyakan ibu kota ${nonCapitalMatch.provinsi}, yaitu ${nonCapitalMatch.capital}.`
-      });
+    return isEn
+      ? `🌤️ **Rain Outlook (${periodLabel}) — ${locTitle}**\nNo rain is forecast across the **${scopeSummary.slotCount}** 3-hour BMKG windows reviewed (dominant condition: **${scopeSummary.dominantDesc}**, accumulated rainfall volume: **${totalMm}**).\n\n*Note: BMKG public data reports rainfall volume in mm rather than a % probability.*\n${updNote ? `${updNote} · ` : ''}${srcLine}`
+      : `🌤️ **Potensi Hujan (${periodLabel}) — ${locTitle}**\nTidak ada indikasi hujan pada **${scopeSummary.slotCount}** slot prakiraan 3-jam BMKG berikutnya (kondisi dominan: **${scopeSummary.dominantDesc}**, akumulasi curah hujan: **${totalMm}**).\n\n*Catatan: Data publik BMKG menampilkan kondisi cuaca dan volume curah hujan (mm), bukan angka persentase peluang (%) hujan.*\n${updNote ? `${updNote} · ` : ''}${srcLine}`;
+  }
+
+  if (intent === 'rainfall') {
+    const scope = timeScope === 'tomorrow' && tomorrow ? tomorrow : (n24 || today);
+    const totalMm = scope?.totalRainMm !== null ? `${scope.totalRainMm} mm` : (isEn ? 'Unavailable' : 'Tidak tersedia');
+    const peakMm = scope?.maxRainMm !== null ? `${scope.maxRainMm} mm / 3h` : '-';
+    return isEn
+      ? `☔ **Rainfall Profile — ${locTitle}**\n- **Current Rainfall Intensity:** ${cur.tp !== null ? `${cur.tp} mm` : '0 mm'}\n- **24-Hour Total Accumulation:** ${totalMm}\n- **Peak 3-Hour Interval:** ${peakMm}\n- **Current Condition:** ${cur.weatherDesc} (Cloud Cover: ${fmtVal(cur.cloudCover, '%')})\n\n${srcLine}`
+      : `☔ **Curah Hujan — ${locTitle}**\n- **Curah Hujan Saat Ini:** ${cur.tp !== null ? `${cur.tp} mm` : '0 mm'}\n- **Akumulasi 24 Jam ke Depan:** ${totalMm}\n- **Puncak Interval 3 Jam:** ${peakMm}\n- **Kondisi Saat Ini:** ${cur.weatherDesc} (Tutupan Awan: ${fmtVal(cur.cloudCover, '%')})\n\n${srcLine}`;
+  }
+
+  if (intent === 'clothing' || intent === 'activity') {
+    const advice = deriveClothingAndActivityHints(primary, lang);
+    const headerStats = isEn
+      ? `(${cur.weatherDesc}, ${fmtVal(cur.temp, '°C')}, range ${fmtVal(n24?.minTemp, '°C')}–${fmtVal(n24?.maxTemp, '°C')}, humidity ${fmtVal(cur.humidity, '%')}, max wind ${fmtVal(n24?.maxWind ?? cur.windSpeed, ' km/h')})`
+      : `(${cur.weatherDesc}, ${fmtVal(cur.temp, '°C')}, rentang ${fmtVal(n24?.minTemp, '°C')}–${fmtVal(n24?.maxTemp, '°C')}, kelembapan ${fmtVal(cur.humidity, '%')}, angin maks ${fmtVal(n24?.maxWind ?? cur.windSpeed, ' km/jam')})`;
+
+    if (wantsBothClothingAndActivity) {
+      const clothList = advice.clothing.map(x => `- ${x}`).join('\n');
+      const actList = advice.activities.map(x => `- ${x}`).join('\n');
+      return isEn
+        ? `👕 **Clothing & Activity Guide — ${locTitle}**\nCurrent profile ${headerStats}:\n\n**Clothing Tips:**\n${clothList}\n\n**Activity Tips:**\n${actList}\n\n${srcLine}`
+        : `👕 **Rekomendasi Pakaian & Aktivitas — ${locTitle}**\nMengacu pada profil cuaca ${headerStats}:\n\n**Saran Pakaian:**\n${clothList}\n\n**Saran Aktivitas:**\n${actList}\n\n${srcLine}`;
     }
 
-    // Completely unknown location
-    return res.json({
+    if (intent === 'clothing') {
+      const list = advice.clothing.map(x => `- ${x}`).join('\n');
+      return isEn
+        ? `👕 **Clothing Recommendations — ${locTitle}**\nBased on ${headerStats}:\n${list}\n\n${srcLine}`
+        : `👕 **Rekomendasi Pakaian — ${locTitle}**\nBerdasarkan kondisi ${headerStats}:\n${list}\n\n${srcLine}`;
+    }
+
+    const list = advice.activities.map(x => `- ${x}`).join('\n');
+    return isEn
+      ? `🏃 **Activity Recommendations — ${locTitle}**\nBased on ${headerStats}:\n${list}\n\n${srcLine}`
+      : `🏃 **Rekomendasi Aktivitas — ${locTitle}**\nBerdasarkan kondisi ${headerStats}:\n${list}\n\n${srcLine}`;
+  }
+
+  if (intent === 'temperature') {
+    const tScope = timeScope === 'tomorrow' && tomorrow ? tomorrow : (today || n24);
+    const periodLabel = timeScope === 'tomorrow' ? (isEn ? 'Tomorrow' : 'Besok') : (isEn ? 'Today' : 'Hari Ini');
+    return isEn
+      ? `🌡️ **Temperature Details (${periodLabel}) — ${locTitle}**\n- **Current Air Temp:** ${fmtVal(cur.temp, '°C')}\n- **Feels Like:** ${fmtVal(cur.feelsLike, '°C')}\n- **${periodLabel} Peak / Low:** ${fmtVal(tScope?.maxTemp, '°C')} / ${fmtVal(tScope?.minTemp, '°C')}\n- **Humidity:** ${fmtVal(cur.humidity, '%')}\n\n${srcLine}`
+      : `🌡️ **Rincian Suhu (${periodLabel}) — ${locTitle}**\n- **Suhu Udara Saat Ini:** ${fmtVal(cur.temp, '°C')}\n- **Suhu Terasa (Feels Like):** ${fmtVal(cur.feelsLike, '°C')}\n- **Suhu Tertinggi / Terendah ${periodLabel}:** ${fmtVal(tScope?.maxTemp, '°C')} / ${fmtVal(tScope?.minTemp, '°C')}\n- **Kelembapan Relatif:** ${fmtVal(cur.humidity, '%')}\n\n${srcLine}`;
+  }
+
+  if (intent === 'wind') {
+    return isEn
+      ? `💨 **Wind Conditions — ${locTitle}**\n- **Current Wind Speed:** ${fmtVal(cur.windSpeed, ' km/h')}\n- **Direction:** ${cur.windDir || 'N/A'}\n- **24-Hour Wind Range:** ${fmtVal(n24?.minWind, ' km/h')} – ${fmtVal(n24?.maxWind, ' km/h')}\n- **Condition:** ${cur.weatherDesc}\n\n${srcLine}`
+      : `💨 **Kondisi Angin — ${locTitle}**\n- **Kecepatan Angin Saat Ini:** ${fmtVal(cur.windSpeed, ' km/jam')}\n- **Arah Angin:** ${cur.windDir || 'Tidak tersedia'}\n- **Rentang Angin 24 Jam:** ${fmtVal(n24?.minWind, ' km/jam')} – ${fmtVal(n24?.maxWind, ' km/jam')}\n- **Kondisi Langit:** ${cur.weatherDesc}\n\n${srcLine}`;
+  }
+
+  if (intent === 'humidity') {
+    return isEn
+      ? `💧 **Humidity Profile — ${locTitle}**\n- **Current Relative Humidity:** ${fmtVal(cur.humidity, '%')}\n- **Dew Point:** ${fmtVal(cur.dewPoint, '°C')}\n- **24-Hour Humidity Range:** ${fmtVal(n24?.minHu, '%')} – ${fmtVal(n24?.maxHu, '%')}\n\n${srcLine}`
+      : `💧 **Profil Kelembapan — ${locTitle}**\n- **Kelembapan Relatif Saat Ini:** ${fmtVal(cur.humidity, '%')}\n- **Titik Embun (Dew Point):** ${fmtVal(cur.dewPoint, '°C')}\n- **Rentang Kelembapan 24 Jam:** ${fmtVal(n24?.minHu, '%')} – ${fmtVal(n24?.maxHu, '%')}\n\n${srcLine}`;
+  }
+
+  if (intent === 'daily_forecast') {
+    if (timeScope === '72h') {
+      const formatDayLine = (label, d) => {
+        if (!d) return `- **${label}:** ${isEn ? 'Data unavailable' : 'Data tidak tersedia'}`;
+        return isEn
+          ? `- **${label}:** ${d.dominantDesc}, Temp ${fmtVal(d.minTemp, '°C')}–${fmtVal(d.maxTemp, '°C')}, Rain ${d.totalRainMm !== null ? `${d.totalRainMm} mm` : '0 mm'}, Avg Humidity ${fmtVal(d.avgHu, '%')}`
+          : `- **${label}:** ${d.dominantDesc}, Suhu ${fmtVal(d.minTemp, '°C')}–${fmtVal(d.maxTemp, '°C')}, Hujan ${d.totalRainMm !== null ? `${d.totalRainMm} mm` : '0 mm'}, Kelembapan Rata-rata ${fmtVal(d.avgHu, '%')}`;
+      };
+      return isEn
+        ? `📅 **3-Day Forecast Summary — ${locTitle}**\n${formatDayLine('Today', today)}\n${formatDayLine('Tomorrow', tomorrow)}\n${formatDayLine('Day After', dayAfter)}\n\n${srcLine}`
+        : `📅 **Ringkasan Prakiraan 3 Hari — ${locTitle}**\n${formatDayLine('Hari Ini', today)}\n${formatDayLine('Besok', tomorrow)}\n${formatDayLine('Lusa', dayAfter)}\n\n${srcLine}`;
+    }
+
+    const targetDay = timeScope === 'day_after' ? dayAfter : (timeScope === 'tomorrow' ? tomorrow : today);
+    const dayHeading = timeScope === 'day_after'
+      ? (isEn ? 'Day After Tomorrow' : 'Lusa')
+      : (timeScope === 'tomorrow' ? (isEn ? 'Tomorrow' : 'Besok') : (isEn ? 'Today' : 'Hari Ini'));
+    if (!targetDay) {
+      return isEn
+        ? `BMKG forecast for **${dayHeading}** in **${locTitle}** is not available right now.\n\n${srcLine}`
+        : `Data prakiraan BMKG untuk **${dayHeading}** di **${locTitle}** belum tersedia saat ini.\n\n${srcLine}`;
+    }
+    return isEn
+      ? `📅 **BMKG Forecast (${dayHeading}) — ${locTitle}**\n- **Dominant Condition:** ${targetDay.dominantDesc}\n- **Temperature Range:** ${fmtVal(targetDay.minTemp, '°C')} – ${fmtVal(targetDay.maxTemp, '°C')}\n- **Total Rainfall Volume:** ${targetDay.totalRainMm !== null ? `${targetDay.totalRainMm} mm` : '0 mm'}\n- **Average Humidity / Peak Wind:** ${fmtVal(targetDay.avgHu, '%')} / ${fmtVal(targetDay.maxWind, ' km/h')}\n\n${srcLine}`
+      : `📅 **Prakiraan Cuaca BMKG (${dayHeading}) — ${locTitle}**\n- **Kondisi Dominan:** ${targetDay.dominantDesc}\n- **Rentang Suhu:** ${fmtVal(targetDay.minTemp, '°C')} – ${fmtVal(targetDay.maxTemp, '°C')}\n- **Total Curah Hujan:** ${targetDay.totalRainMm !== null ? `${targetDay.totalRainMm} mm` : '0 mm'}\n- **Kelembapan Rata-rata / Angin Maks:** ${fmtVal(targetDay.avgHu, '%')} / ${fmtVal(targetDay.maxWind, ' km/jam')}\n\n${srcLine}`;
+  }
+
+  const dayRange = today && today.minTemp !== null && today.maxTemp !== null ? `${today.minTemp}–${today.maxTemp}°C` : '-';
+  return isEn
+    ? `📍 **Current Weather — ${locTitle}**\n- **Condition:** ${cur.weatherDesc}\n- **Temperature / Feels Like:** ${fmtVal(cur.temp, '°C')} / ${fmtVal(cur.feelsLike, '°C')} (Today: ${dayRange})\n- **Humidity:** ${fmtVal(cur.humidity, '%')}\n- **Wind:** ${fmtVal(cur.windSpeed, ' km/h')} (${cur.windDir || '-'})\n- **Current Rainfall Volume:** ${cur.tp !== null ? `${cur.tp} mm` : '0 mm'}\n${updNote ? `\n${updNote} · ` : '\n'}${srcLine}`
+    : `📍 **Kondisi Cuaca Saat Ini — ${locTitle}**\n- **Kondisi:** ${cur.weatherDesc}\n- **Suhu / Terasa Seperti:** ${fmtVal(cur.temp, '°C')} / ${fmtVal(cur.feelsLike, '°C')} (Rentang hari ini: ${dayRange})\n- **Kelembapan:** ${fmtVal(cur.humidity, '%')}\n- **Angin:** ${fmtVal(cur.windSpeed, ' km/jam')} (${cur.windDir || '-'})\n- **Curah Hujan Saat Ini:** ${cur.tp !== null ? `${cur.tp} mm` : '0 mm'}\n${updNote ? `\n${updNote} · ` : '\n'}${srcLine}`;
+}
+
+// 7. Intelligent AI Weather Assistant (Multi-Intent BMKG + Groq + Bilingual Engine)
+app.post('/api/ai-assistant', async (req, res) => {
+  const body = req.body || {};
+  const q = String(body.question || '').trim();
+  const lang = body.lang === 'en' ? 'en' : 'id';
+
+  if (!q) {
+    return res.status(400).json({
       success: false,
-      reply: 'Saya hanya menjawab cuaca untuk 38 ibu kota provinsi di Indonesia. Coba sebut salah satu ibu kota provinsi atau nama provinsinya.'
+      reply: lang === 'en' ? 'Question cannot be empty.' : 'Pertanyaan tidak boleh kosong.',
+      lang
     });
   }
 
-  // Now we have chosenCapital! Fetch BMKG weather data
   try {
-    const weatherData = await getWeatherDataForAdm4(chosenCapital.adm4);
-    
-    // ATURAN 6: Jika adm4 kota itu NODATA: "BMKG belum menyediakan data untuk [nama ibu kota]." Jangan pindah ke kota lain.
-    if (!weatherData || weatherData.status === 'no-data' || !weatherData.current) {
-      return res.json({
-        success: false,
-        reply: `BMKG belum menyediakan data untuk ${chosenCapital.capital}.`
-      });
+    const history = Array.isArray(body.history) ? body.history : [];
+    const { intent, timeScope, wantsBothClothingAndActivity, isFollowUp } = classifyAIIntent(q, history);
+    const resolved = resolveAITargetLocations({
+      question: q,
+      intent,
+      contextLocation: body.contextLocation,
+      location: body.location,
+      weatherContext: body.weatherContext,
+      history
+    });
+
+    const ctx = {
+      islandName: resolved.islandName,
+      locations: [],
+      nationalCapitals: null,
+      gempa: null
+    };
+
+    if (intent === 'earthquake') {
+      if (gempaCache.data && Date.now() - gempaCache.timestamp < GEMPA_TTL_MS) {
+        ctx.gempa = gempaCache.data;
+      } else {
+        try {
+          const response = await fetch('https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json', {
+            headers: { 'User-Agent': 'BMKG-TEWS-App/1.0' },
+            signal: AbortSignal.timeout(4500)
+          });
+          if (response.ok) {
+            const gData = await response.json();
+            ctx.gempa = gData?.Infogempa?.gempa || null;
+            if (ctx.gempa) {
+              gempaCache = { data: ctx.gempa, timestamp: Date.now() };
+            }
+          }
+        } catch (e) {}
+      }
+      if (!ctx.gempa && body.gempaContext && body.gempaContext.Magnitude) {
+        ctx.gempa = body.gempaContext;
+      }
+    } else if (intent === 'highest_temp') {
+      try {
+        const snap = await fetchCapitalsSnapshot();
+        const verifiedCaps = (snap.data || []).filter(c => !c.isFallback && Number.isFinite(Number(c.temp)));
+        verifiedCaps.sort((a, b) => Number(b.temp) - Number(a.temp));
+        ctx.nationalCapitals = {
+          liveCount: verifiedCaps.length,
+          totalCount: snap.totalCount,
+          topHot: verifiedCaps.slice(0, 8),
+          topCool: [...verifiedCaps].reverse().slice(0, 3)
+        };
+      } catch (e) {
+        console.warn('highest_temp capitals snapshot error:', e.message);
+      }
+    } else if (resolved.targets.length > 0 && timeScope !== 'past' && timeScope !== 'beyond_limit' && !resolved.islandName) {
+      ctx.locations = await Promise.all(
+        resolved.targets.map(t => fetchNormalizedWeatherForAI(t, body.weatherContext, lang))
+      );
     }
 
-    const cuacaDays = weatherData.forecast || [];
-    const cur = weatherData.current;
+    const activeContextLocation = resolved.targets[0]?.name || body.contextLocation || null;
 
-    // Build province prefix if user asked by province name (ATURAN 2)
-    let headerPrefix = '';
-    if (isProvinceQuery) {
-      headerPrefix = `Mewakili ibu kota provinsi ${chosenCapital.provinsi}: ${chosenCapital.capital}\n`;
+    let reply = null;
+    let mode = 'fallback';
+    if (LLM_API_KEY && timeScope !== 'past' && timeScope !== 'beyond_limit' && !resolved.islandName) {
+      reply = await callGroqAssistant({
+        question: q,
+        lang,
+        intent,
+        timeScope,
+        structuredContext: ctx,
+        history
+      });
+      if (reply) mode = 'llm';
     }
 
-    // If 3 days mode
-    if (isThreeDaysMode) {
-      const slotToday = cur;
-      
-      const tomorrowSlots = cuacaDays.filter(f => {
-        const d = new Date(f.local_datetime || f.datetime);
-        const today = new Date();
-        return d.getDate() === (today.getDate() + 1);
-      });
-      const slotTomorrow = tomorrowSlots[Math.floor(tomorrowSlots.length / 2)] || cuacaDays[Math.min(8, cuacaDays.length - 1)] || cur;
-
-      const day2Slots = cuacaDays.filter(f => {
-        const d = new Date(f.local_datetime || f.datetime);
-        const today = new Date();
-        return d.getDate() === (today.getDate() + 2);
-      });
-      const slotDay2 = day2Slots[Math.floor(day2Slots.length / 2)] || cuacaDays[Math.min(16, cuacaDays.length - 1)] || slotTomorrow;
-
-      const reply = `${headerPrefix}📍 **Prakiraan Cuaca 3 Hari ke Depan - ${chosenCapital.capital}, ${chosenCapital.provinsi}**
-1. **Hari Ini:** ${slotToday.weather_desc || 'Cerah Berawan'}, Suhu ${slotToday.t !== undefined ? slotToday.t + '°C' : '26°C'}, Kelembapan ${slotToday.hu !== undefined ? slotToday.hu + '%' : '75%'}, Hujan: ${slotToday.tp !== undefined && slotToday.tp !== null ? slotToday.tp : 0} mm
-2. **Besok:** ${slotTomorrow.weather_desc || 'Hujan Ringan'}, Suhu ${slotTomorrow.t !== undefined ? slotTomorrow.t + '°C' : '28°C'}, Kelembapan ${slotTomorrow.hu !== undefined ? slotTomorrow.hu + '%' : '78%'}, Hujan: ${slotTomorrow.tp !== undefined && slotTomorrow.tp !== null ? slotTomorrow.tp : 0} mm
-3. **Lusa:** ${slotDay2.weather_desc || 'Berawan'}, Suhu ${slotDay2.t !== undefined ? slotDay2.t + '°C' : '27°C'}, Kelembapan ${slotDay2.hu !== undefined ? slotDay2.hu + '%' : '80%'}, Hujan: ${slotDay2.tp !== undefined && slotDay2.tp !== null ? slotDay2.tp : 0} mm
-
-Sumber: BMKG`;
-
-      return res.json({
-        success: true,
-        reply,
-        capital: chosenCapital.capital,
-        provinsi: chosenCapital.provinsi
+    if (!reply) {
+      reply = buildRuleBasedAIReply({
+        intent,
+        timeScope,
+        wantsBothClothingAndActivity,
+        lang,
+        ctx
       });
     }
-
-    // Single day mode (Hari Ini, Besok, Lusa)
-    let targetTemp = null;
-    let targetHumidity = null;
-    let targetWeather = '';
-    let targetRain = 0;
-
-    if (dayOffset === 0) {
-      targetTemp = cur.t !== undefined ? cur.t + '°C' : '26°C';
-      targetHumidity = cur.hu !== undefined ? cur.hu + '%' : '75%';
-      targetWeather = cur.weather_desc || 'Cerah Berawan';
-      targetRain = cur.tp !== undefined && cur.tp !== null ? cur.tp : 0;
-    } else if (dayOffset === 1) {
-      const tomorrowSlots = cuacaDays.filter(f => {
-        const d = new Date(f.local_datetime || f.datetime);
-        const today = new Date();
-        return d.getDate() === (today.getDate() + 1);
-      });
-      const repSlot = tomorrowSlots[Math.floor(tomorrowSlots.length / 2)] || tomorrowSlots[0] || cuacaDays[Math.min(8, cuacaDays.length - 1)] || cur;
-      targetTemp = repSlot?.t !== undefined ? repSlot.t + '°C' : '28°C';
-      targetHumidity = repSlot?.hu !== undefined ? repSlot.hu + '%' : '78%';
-      targetWeather = repSlot?.weather_desc || 'Hujan Ringan';
-      targetRain = repSlot?.tp !== undefined && repSlot.tp !== null ? repSlot.tp : 0;
-    } else if (dayOffset === 2) {
-      const lusaSlots = cuacaDays.filter(f => {
-        const d = new Date(f.local_datetime || f.datetime);
-        const today = new Date();
-        return d.getDate() === (today.getDate() + 2);
-      });
-      const repSlot = lusaSlots[Math.floor(lusaSlots.length / 2)] || lusaSlots[0] || cuacaDays[Math.min(16, cuacaDays.length - 1)] || cur;
-      targetTemp = repSlot?.t !== undefined ? repSlot.t + '°C' : '27°C';
-      targetHumidity = repSlot?.hu !== undefined ? repSlot.hu + '%' : '80%';
-      targetWeather = repSlot?.weather_desc || 'Berawan';
-      targetRain = repSlot?.tp !== undefined && repSlot.tp !== null ? repSlot.tp : 0;
-    }
-
-    const rainStr = targetRain > 0 ? `Curah hujan terpantau ${targetRain} mm` : 'Peluang hujan nihil (0 mm / Kering)';
-
-    // ATURAN 1: nama ibu kota itu, kondisi, suhu, kelembapan, dan peluang hujan untuk tanggal yang diminta. Sebut "Sumber: BMKG".
-    const reply = `${headerPrefix}📍 **Prakiraan Cuaca ${chosenCapital.capital}, ${chosenCapital.provinsi} (${dayLabel.toUpperCase()})**
-- **Kondisi:** ${targetWeather}
-- **Suhu:** ${targetTemp}
-- **Kelembapan:** ${targetHumidity}
-- **Peluang Hujan:** ${rainStr}
-
-Sumber: BMKG`;
 
     return res.json({
       success: true,
       reply,
-      capital: chosenCapital.capital,
-      provinsi: chosenCapital.provinsi
+      intent,
+      timeScope,
+      lang,
+      isFollowUp,
+      mode,
+      contextLocation: activeContextLocation,
+      capital: resolved.targets[0]?.name || null,
+      provinsi: resolved.targets[0]?.provinsi || null,
+      source: intent === 'earthquake' ? 'BMKG InaTEWS' : 'BMKG'
     });
-
   } catch (err) {
-    // ATURAN 8: Jika error: "Maaf, terjadi kesalahan saat mengambil data," dan catat di console. Jawaban tidak boleh kosong.
-    console.error('Error in AI Assistant weather fetch:', err);
+    console.error('Error in AI Assistant handler:', err);
     return res.json({
       success: false,
-      reply: 'Maaf, terjadi kesalahan saat mengambil data.'
+      lang,
+      reply: lang === 'en'
+        ? 'Sorry, an error occurred while retrieving BMKG data.'
+        : 'Maaf, terjadi kesalahan saat mengambil data.'
     });
   }
 });
