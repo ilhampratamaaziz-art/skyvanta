@@ -819,10 +819,11 @@
     toggleIds.forEach((id) => {
       const btn = document.getElementById(id);
       if (btn) {
-        btn.textContent = currentLang.toUpperCase();
+        const labelCode = currentLang.toUpperCase();
+        btn.textContent = labelCode;
         btn.setAttribute("aria-pressed", currentLang === "en" ? "true" : "false");
         btn.setAttribute("title", t("nav.lang_title"));
-        btn.setAttribute("aria-label", t("nav.lang_title"));
+        btn.setAttribute("aria-label", `${labelCode} — ${t("nav.lang_title")}`);
       }
     });
   }

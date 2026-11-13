@@ -36,8 +36,7 @@ function formatMarkdownReply(text) {
 }
 
 let activeWeatherAbortController = null;
-// SKYVANTA - Official BMKG Weather Platform
-// Developed for National Web Development Competition
+// SKYVANTA - Official BMKG Weather & Meteorology Platform
 
 // SINGLE SOURCE OF TRUTH FOR ACTIVE LOCATION
 // Read by: Overview, Dashboard/Detail Cuaca, Dossier, Detail Visual Parametrik,
@@ -357,8 +356,10 @@ function removeFavoriteLocation(adm4) {
 function syncUnitToggleButton() {
   const btn = document.getElementById("btn-unit-toggle");
   if (!btn) return;
-  btn.textContent = `°${STATE.unit}`;
+  const labelText = `°${STATE.unit}`;
+  btn.textContent = labelText;
   btn.setAttribute("aria-pressed", STATE.unit === "F" ? "true" : "false");
+  btn.setAttribute("aria-label", `${labelText} — ${_t("nav.unit_title")}`);
 }
 
 function renderHeroErrorState(adm4, errorMsg = "Gagal menghubungi BMKG") {
@@ -6232,6 +6233,7 @@ window.renderVectorMapPins = renderVectorMapPins;
 window.renderCapitalsQuickList = renderCapitalsQuickList;
 
 document.addEventListener("skyvanta:langchange", () => {
+  if (typeof syncUnitToggleButton === "function") syncUnitToggleButton();
   if (typeof renderFavoritesList === "function") renderFavoritesList();
   if (typeof offlineBannerState !== "undefined" && offlineBannerState.active) {
     updateOfflineSyncBanner(true);

@@ -1,4 +1,4 @@
-const SHELL_CACHE = "skyvanta-shell-v1";
+const SHELL_CACHE = "skyvanta-shell-v2";
 const API_CACHE = "skyvanta-api-v1";
 
 const SHELL_ASSETS = [
@@ -6,6 +6,7 @@ const SHELL_ASSETS = [
   "/index.html",
   "/style.css",
   "/aurora-redesign.css",
+  "/tailwind-built.css?v=1.0",
   "/i18n.js?v=1.0",
   "/locationCodes.js?v=5.0",
   "/iconMapper.js?v=5.0",
@@ -14,6 +15,7 @@ const SHELL_ASSETS = [
   "/overview-motion.js?v=1.0",
   "/manifest.webmanifest",
   "/favicon.svg",
+  "/hero-sky.webp",
   "/hero-sky.jpg",
   "/vendor/leaflet/leaflet.css",
   "/vendor/leaflet/leaflet.js",

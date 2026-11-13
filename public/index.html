@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <link rel="preconnect" href="https://api-apps.bmkg.go.id" />
     <link rel="dns-prefetch" href="https://api-apps.bmkg.go.id" />
-    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <meta
       name="viewport"
@@ -33,22 +32,13 @@
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="preload" as="image" href="hero-sky.jpg" fetchpriority="high" />
-
-    <!-- Tailwind CSS CDN (must run before first paint to prevent FOUC/CLS) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              sky: { 400: "#38bdf8", 500: "#0ea5e9", 600: "#0284c7" },
-              slate: { 850: "#172033" },
-            },
-          },
-        },
-      };
-    </script>
+    <link
+      rel="preload"
+      as="image"
+      href="hero-sky.webp"
+      type="image/webp"
+      fetchpriority="high"
+    />
 
     <!-- Google Fonts (non-render-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -82,9 +72,10 @@
       ><link rel="stylesheet" href="vendor/leaflet/leaflet.css"
     /></noscript>
 
-    <!-- Custom CSS -->
+    <!-- Custom CSS & Built Tailwind CSS -->
     <link rel="stylesheet" href="style.css?v=5.0" />
     <link rel="stylesheet" href="aurora-redesign.css?v=5.0" />
+    <link rel="stylesheet" href="tailwind-built.css?v=1.0" />
     <style>
       .siaga-accordion > summary {
         list-style: none;
@@ -104,10 +95,14 @@
   <body class="antialiased">
     <!-- Atmospheric Sky Background (Visible Blue Sky & Clouds) -->
     <img
-      src="hero-sky.jpg"
+      src="hero-sky.webp"
+      onerror="
+        this.onerror = null;
+        this.src = 'hero-sky.jpg';
+      "
       alt="Langit dan Awan Indonesia"
-      width="1024"
-      height="576"
+      width="960"
+      height="540"
       loading="eager"
       decoding="async"
       fetchpriority="high"
@@ -503,11 +498,10 @@
             id="btn-lang-toggle"
             type="button"
             onclick="toggleLanguage()"
-            class="w-9 h-9 rounded-xl bg-white/80 hover:bg-white text-slate-800 border border-slate-200 font-bold text-xs flex items-center justify-center transition-all cursor-pointer shadow-sm"
+            class="w-11 h-11 rounded-xl bg-white/80 hover:bg-white text-slate-800 border border-slate-200 font-bold text-xs flex items-center justify-center transition-all cursor-pointer shadow-sm"
             title="Ubah Bahasa (Indonesia / English)"
-            aria-label="Ubah Bahasa (Indonesia / English)"
+            aria-label="ID — Ubah Bahasa (Indonesia / English)"
             data-i18n-title="nav.lang_title"
-            data-i18n-aria-label="nav.lang_title"
           >
             ID
           </button>
@@ -515,13 +509,12 @@
             id="btn-unit-toggle"
             type="button"
             onclick="toggleTemperatureUnit()"
-            class="w-9 h-9 rounded-xl bg-white/80 hover:bg-white text-slate-800 border border-slate-200 font-bold text-xs flex items-center justify-center transition-all cursor-pointer shadow-sm"
+            class="w-11 h-11 rounded-xl bg-white/80 hover:bg-white text-slate-800 border border-slate-200 font-bold text-xs flex items-center justify-center transition-all cursor-pointer shadow-sm"
             title="Ubah Satuan Suhu"
-            aria-label="Ubah Satuan Suhu"
+            aria-label="°C — Ubah Satuan Suhu"
             data-i18n-title="nav.unit_title"
-            data-i18n-aria-label="nav.unit_title"
           >
-            °C/°F
+            °C
           </button>
         </div>
       </aside>
@@ -606,11 +599,10 @@
               id="btn-lang-toggle-mobile"
               type="button"
               onclick="toggleLanguage()"
-              class="flex md:hidden w-9 h-9 rounded-full bg-white/70 hover:bg-white text-slate-800 border border-white/80 backdrop-blur-md shadow-sm transition-all items-center justify-center font-bold text-xs cursor-pointer"
+              class="flex md:hidden w-11 h-11 rounded-full bg-white/80 hover:bg-white text-slate-800 border border-white/80 backdrop-blur-md shadow-sm transition-all items-center justify-center font-bold text-xs cursor-pointer"
               title="Ubah Bahasa (Indonesia / English)"
-              aria-label="Ubah Bahasa (Indonesia / English)"
+              aria-label="ID — Ubah Bahasa (Indonesia / English)"
               data-i18n-title="nav.lang_title"
-              data-i18n-aria-label="nav.lang_title"
             >
               ID
             </button>
@@ -3487,11 +3479,11 @@
         </section>
 
         <!-- FOOTER -->
-        <footer class="mt-8 px-6 text-center text-xs text-slate-500 space-y-1">
-          <p class="text-slate-800" data-i18n="footer.copy">
+        <footer class="mt-8 mx-auto max-w-2xl px-6 py-4 rounded-2xl bg-white/85 backdrop-blur-md border border-slate-200/80 text-center text-xs text-slate-700 space-y-1 shadow-sm">
+          <p class="text-slate-900 font-medium" data-i18n="footer.copy">
             © 2026 SKYVANTA · Platform Informasi Cuaca & Meteorologi Indonesia
           </p>
-          <p class="text-[10px] text-slate-800" data-i18n="footer.meta">
+          <p class="text-[11px] text-slate-700" data-i18n="footer.meta">
             Kepmendagri No. 100.1.1-6117 · InaTEWS
           </p>
         </footer>
