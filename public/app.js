@@ -2831,6 +2831,60 @@ function getMagnitudeColorInfo(mag) {
 }
 
 /**
+ * Format nama lokasi gempa BMKG hanya untuk tampilan (tanpa mengubah data asli).
+ */
+function formatGempaWilayah(rawWilayah, fallback = "--") {
+  if (typeof rawWilayah !== "string") return fallback;
+  const trimmed = rawWilayah.trim();
+  if (!trimmed) return fallback;
+
+  const UPPER_ACRONYMS = new Set(["DIY", "DKI", "NTB", "NTT"]);
+  let text = trimmed
+    .replace(/\bTimurLaut\b/gi, "Timur Laut")
+    .replace(/\bBaratLaut\b/gi, "Barat Laut")
+    .replace(/\bBaratDaya\b/gi, "Barat Daya")
+    .replace(/\bTenggaraDa\b/gi, "Tenggara")
+    .replace(/([A-Z]{2,})\.([A-Z]{2,})/g, "$1. $2");
+
+  const toTitleWord = (word) => {
+    if (!word) return word;
+    if (UPPER_ACRONYMS.has(word)) return word;
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  };
+
+  return text
+    .split(/\s+/)
+    .map((token) => {
+      if (!/[A-Z]/.test(token) || /[a-z]/.test(token)) {
+        return token;
+      }
+      return token
+        .split("-")
+        .map((part) => {
+          if (!/[A-Z]/.test(part) || /[a-z]/.test(part)) {
+            return part;
+          }
+          const expanded = part.replace(/BRT/g, " Barat ").trim();
+          return expanded
+            .split(/\s+/)
+            .map((sub) => {
+              const m = sub.match(/^([^A-Z0-9]*)([A-Z0-9.]+)([^A-Z0-9]*)$/);
+              if (!m) return sub;
+              const [, prefix, core, suffix] = m;
+              if (!/[A-Z]/.test(core)) return sub;
+              const formattedCore = core.endsWith(".")
+                ? toTitleWord(core.slice(0, -1)) + "."
+                : toTitleWord(core);
+              return prefix + formattedCore + suffix;
+            })
+            .join(" ");
+        })
+        .join("-");
+    })
+    .join(" ");
+}
+
+/**
  * Rule 3: Isi kartu "Gempa Terkini": Magnitudo, Kedalaman, Lokasi (Wilayah),
  * Waktu (Tanggal dan Jam WIB), Potensi Tsunami (badge hijau jika tidak berpotensi).
  * Rule 8: Jangan tampilkan gambar Shakemap jika URL-nya kosong atau gagal dimuat. Sembunyikan bagian itu.
@@ -2860,7 +2914,7 @@ function renderMainEarthquakeCard(g) {
   }
 
   if (locEl) {
-    locEl.textContent = g.Wilayah || "--";
+    locEl.textContent = formatGempaWilayah(g.Wilayah, "--");
   }
 
   if (timeEl) {
@@ -2902,7 +2956,7 @@ function renderMainEarthquakeCard(g) {
   // Top nav header ticker
   const ticker = document.getElementById("gempa-ticker-text");
   if (ticker) {
-    ticker.innerHTML = `<strong>BMKG GEMPA:</strong> M ${g.Magnitude} • ${g.Wilayah} • Kedalaman ${g.Kedalaman} (${g.Jam})`;
+    ticker.innerHTML = `<strong>BMKG GEMPA:</strong> M ${escapeHtml(String(g.Magnitude ?? "--"))} • ${escapeHtml(formatGempaWilayah(g.Wilayah, "--"))} • Kedalaman ${escapeHtml(String(g.Kedalaman ?? "--"))} (${escapeHtml(String(g.Jam ?? "--"))})`;
   }
 
   // Sync any legacy dash elements if present
@@ -2911,7 +2965,7 @@ function renderMainEarthquakeCard(g) {
   const dashDepth = document.getElementById("dash-gempa-depth");
   if (dashDepth) dashDepth.textContent = g.Kedalaman || "--";
   const dashLoc = document.getElementById("dash-gempa-location");
-  if (dashLoc) dashLoc.textContent = g.Wilayah || "--";
+  if (dashLoc) dashLoc.textContent = formatGempaWilayah(g.Wilayah, "--");
   const dashTime = document.getElementById("dash-gempa-time");
   if (dashTime) dashTime.textContent = `${g.Tanggal || ""} ${g.Jam || ""}`;
   const dashPotensi = document.getElementById("dash-gempa-potensi");
@@ -2965,7 +3019,7 @@ function renderEarthquakeRecentList(list) {
             M ${item.Magnitude}
           </span>
           <div>
-            <h4 class="text-xs font-bold text-slate-900 leading-snug">${escapeHtml(item.Wilayah || "Episentrum Gempa")}</h4>
+            <h4 class="text-xs font-bold text-slate-900 leading-snug">${escapeHtml(formatGempaWilayah(item.Wilayah, "Episentrum Gempa"))}</h4>
             <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
               <span>Kedalaman: <strong class="text-slate-700">${item.Kedalaman || "--"}</strong></span>
               <span>•</span>
@@ -3003,7 +3057,7 @@ function getEarthquakeMarkerStyle(mag) {
 function buildEarthquakePopupHtml(item, hexColor) {
   const m = parseFloat(item.Magnitude) || 0;
   const magText = escapeHtml(String(item.Magnitude ?? "--"));
-  const wilayahText = escapeHtml(String(item.Wilayah || "Episentrum Gempa"));
+  const wilayahText = escapeHtml(formatGempaWilayah(item.Wilayah, "Episentrum Gempa"));
   const kedalamanText = escapeHtml(String(item.Kedalaman || "--"));
   const waktuText = escapeHtml(`${item.Tanggal || ""} ${item.Jam || ""}`.trim() || "--");
 
@@ -4050,7 +4104,7 @@ function openOfficialAlertsModal() {
           <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
           <span>BULETIN SEISMOLOGI & GEOFISIKA BMKG</span>
         </div>
-        <h5 class="text-xs font-bold text-white">Gempa Bumi M ${gempa.Magnitude} • ${gempa.Wilayah}</h5>
+        <h5 class="text-xs font-bold text-white">Gempa Bumi M ${escapeHtml(String(gempa.Magnitude ?? "--"))} • ${escapeHtml(formatGempaWilayah(gempa.Wilayah, "--"))}</h5>
         <p class="text-[11px] text-slate-300">Kedalaman ${gempa.Kedalaman} pada ${gempa.Tanggal} ${gempa.Jam}. ${gempa.Potensi || ""}</p>
       </div>
     `;
