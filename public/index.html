@@ -213,7 +213,8 @@
           href="#landing"
           onclick="navigateToPage('landing', event)"
           class="aurora-sidebar-logo"
-          title="SKYVANTA Beranda / Welcome"
+          title="SKYVANTA Beranda"
+          aria-label="SKYVANTA Beranda"
         >
           <svg
             class="w-6 h-6 text-sky-600"
@@ -264,7 +265,8 @@
             onclick="navigateToPage('landing', event)"
             class="aurora-nav-btn"
             data-page="landing"
-            title="Halaman Pembuka / Welcome"
+            title="Beranda SKYVANTA"
+            aria-label="Beranda"
           >
             <svg
               class="w-5 h-5"
@@ -286,6 +288,7 @@
             class="aurora-nav-btn"
             data-page="dashboard"
             title="Dashboard Cuaca"
+            aria-label="Dashboard Cuaca"
           >
             <svg
               class="w-5 h-5"
@@ -302,13 +305,14 @@
             <span class="aurora-nav-tooltip">Dashboard</span>
           </a>
 
-          <!-- 2. Weather Map -->
+          <!-- 2. Peta Cuaca -->
           <a
             href="#map"
             onclick="navigateToPage('map', event)"
             class="aurora-nav-btn"
             data-page="map"
-            title="Weather Map Indonesia"
+            title="Peta Cuaca Indonesia"
+            aria-label="Peta Cuaca"
           >
             <svg
               class="w-5 h-5"
@@ -321,16 +325,17 @@
               <line x1="8" y1="2" x2="8" y2="18" />
               <line x1="16" y1="6" x2="16" y2="22" />
             </svg>
-            <span class="aurora-nav-tooltip">Weather Map</span>
+            <span class="aurora-nav-tooltip">Peta Cuaca</span>
           </a>
 
-          <!-- 3. Forecast -->
+          <!-- 3. Prakiraan -->
           <a
             href="#forecast"
             onclick="navigateToPage('forecast', event)"
             class="aurora-nav-btn"
             data-page="forecast"
             title="Prakiraan Cuaca 72 Jam & 3 Hari"
+            aria-label="Prakiraan Cuaca"
           >
             <svg
               class="w-5 h-5"
@@ -344,16 +349,17 @@
               <line x1="8" y1="2" x2="8" y2="6" />
               <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
-            <span class="aurora-nav-tooltip">Forecast</span>
+            <span class="aurora-nav-tooltip">Prakiraan</span>
           </a>
 
-          <!-- 4. Weather Details -->
+          <!-- 4. Detail Cuaca -->
           <a
             href="#details"
             onclick="navigateToPage('details', event)"
             class="aurora-nav-btn"
             data-page="details"
-            title="Detail & Visualisasi Parametrik"
+            title="Detail Cuaca & Visualisasi Parametrik"
+            aria-label="Detail Cuaca"
           >
             <svg
               class="w-5 h-5"
@@ -370,16 +376,17 @@
               <line x1="16" y1="17" x2="8" y2="17" />
               <polyline points="10 9 9 9 8 9" />
             </svg>
-            <span class="aurora-nav-tooltip">Weather Details</span>
+            <span class="aurora-nav-tooltip">Detail Cuaca</span>
           </a>
 
-          <!-- 5. Location Comparison -->
+          <!-- 5. Komparasi Lokasi -->
           <a
             href="#comparison"
             onclick="navigateToPage('comparison', event)"
             class="aurora-nav-btn"
             data-page="comparison"
-            title="Komparasi Cuaca Antarkota"
+            title="Komparasi Lokasi & Cuaca Antarkota"
+            aria-label="Komparasi Lokasi"
           >
             <svg
               class="w-5 h-5"
@@ -392,16 +399,17 @@
               <line x1="12" y1="20" x2="12" y2="4" />
               <line x1="6" y1="20" x2="6" y2="14" />
             </svg>
-            <span class="aurora-nav-tooltip">Location Comparison</span>
+            <span class="aurora-nav-tooltip">Komparasi Lokasi</span>
           </a>
 
-          <!-- 6. Rainfall (New Dedicated Page) -->
+          <!-- 6. Peta Curah Hujan -->
           <a
             href="#rainfall"
             onclick="navigateToPage('rainfall', event)"
             class="aurora-nav-btn"
             data-page="rainfall"
             title="Peta & Pemantauan Curah Hujan"
+            aria-label="Peta Curah Hujan"
           >
             <svg
               class="w-5 h-5"
@@ -418,16 +426,17 @@
               <line x1="12" y1="21" x2="12" y2="23" />
               <line x1="12" y1="15" x2="12" y2="17" />
             </svg>
-            <span class="aurora-nav-tooltip">Rainfall Map</span>
+            <span class="aurora-nav-tooltip">Peta Curah Hujan</span>
           </a>
 
-          <!-- 7. AeroAI -->
+          <!-- 7. Asisten AeroAI -->
           <a
             href="#ai"
             onclick="navigateToPage('ai', event)"
             class="aurora-nav-btn"
             data-page="ai"
-            title="AeroAI Weather Assistant"
+            title="Asisten Cuaca AeroAI"
+            aria-label="Asisten AeroAI"
           >
             <svg
               class="w-5 h-5"
@@ -440,16 +449,17 @@
               <path d="M8 12h8" />
               <path d="M12 8v8" />
             </svg>
-            <span class="aurora-nav-tooltip">AeroAI Assistant</span>
+            <span class="aurora-nav-tooltip">Asisten AeroAI</span>
           </a>
 
-          <!-- 8. Earthquake & TEWS -->
+          <!-- 8. Gempa & TEWS -->
           <a
             href="#earthquake"
             onclick="navigateToPage('earthquake', event)"
             class="aurora-nav-btn text-rose-500 hover:text-rose-600"
             data-page="earthquake"
             title="Gempa Bumi & InaTEWS BMKG"
+            aria-label="Gempa & TEWS"
           >
             <svg
               class="w-5 h-5"
@@ -462,7 +472,7 @@
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            <span class="aurora-nav-tooltip">Gempa & TEWS</span>
+            <span class="aurora-nav-tooltip">Gempa &amp; TEWS</span>
           </a>
         </nav>
 
