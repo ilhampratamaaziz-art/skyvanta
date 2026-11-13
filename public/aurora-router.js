@@ -19,7 +19,7 @@ const PAGE_ROUTES = ["landing", "dashboard", "map", "forecast", "details", "comp
 var currentCompareA = (window.activeLocation ? window.activeLocation.adm4 : "31.71.01.1001");
 var currentCompareB = "35.78.01.1001";
 
-function navigateToPage(pageId, event) {
+function navigateToPage(pageId, event, options) {
   if (event && event.preventDefault) event.preventDefault();
   if (!PAGE_ROUTES.includes(pageId)) pageId = "landing";
 
@@ -52,7 +52,11 @@ function navigateToPage(pageId, event) {
 
   // 5. Update browser history & URL
   if (window.location.hash !== "#" + pageId) {
-    window.history.pushState({ page: pageId }, "", "#" + pageId);
+    if (options && options.replaceHistory) {
+      window.history.replaceState({ page: pageId }, "", "#" + pageId);
+    } else {
+      window.history.pushState({ page: pageId }, "", "#" + pageId);
+    }
   }
 
   // Always synchronize titles when navigating to any page
@@ -817,7 +821,7 @@ function handleUrlHashRouting() {
   } else if (!PAGE_ROUTES.includes(hash)) {
     hash = "dashboard";
   }
-  navigateToPage(hash);
+  navigateToPage(hash, null, { replaceHistory: true });
 }
 
 window.addEventListener("popstate", () => {
