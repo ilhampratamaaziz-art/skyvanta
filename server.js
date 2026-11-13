@@ -1149,7 +1149,7 @@ function classifyAIIntent(question, history = []) {
     timeScope = 'past';
   } else if (/\b([4-9]|1[0-9])\s*(hari|days?)\b|minggu\s*depan|bulan\s*depan|pekan\s*depan|next\s*(week|month)/i.test(q)) {
     timeScope = 'beyond_limit';
-  } else if (/\b(3|tiga|three)\s*(hari|days?)\b|72\s*(jam|hours?)|beberapa\s*hari\s*(ke\s*depan)?|next\s*3\s*days|multi[- ]day/i.test(q)) {
+  } else if (/\b(3|tiga|three)[-\s]*(hari|days?)\b|72[-\s]*(jam|hours?)|beberapa\s*hari\s*(ke\s*depan|mendatang|berikutnya)?|next\s*3\s*days|multi[- ]day/i.test(q)) {
     timeScope = '72h';
   } else if (/\blusa\b|day\s*after\s*tomorrow|hari\s*ke[- ]*2/i.test(q)) {
     timeScope = 'day_after';
@@ -1188,7 +1188,7 @@ function classifyAIIntent(question, history = []) {
     intent = 'humidity';
   } else if (/(suhu|temperatur|feels\s*like|suhu\s*terasa|panas|dingin|sejuk|derajat|temperature|\btemp\b|warm|hot|cold|cool|max\s*temp)/i.test(q)) {
     intent = 'temperature';
-  } else if (/(prakiraan|ramalan|forecast|outlook)/i.test(q)) {
+  } else if (timeScope === '72h' || timeScope === 'tomorrow' || timeScope === 'day_after' || /(prakiraan|ramalan|forecast|outlook)/i.test(q)) {
     intent = 'daily_forecast';
   } else if (/(cuaca|kondisi|bagaimana|gimana|weather|condition|today|right\s*now|hari\s*ini|sekarang)/i.test(q)) {
     intent = 'current_weather';
@@ -1372,7 +1372,8 @@ function resolveAITargetLocations({ question, intent, contextLocation, location,
       'weather', 'forecast', 'rain', 'potential', 'probability', 'next', 'hours', 'today', 'tomorrow',
       'clothing', 'activity', 'activities', 'safe', 'outdoor', 'compare', 'regions', 'other', 'with',
       'between', 'hottest', 'highest', 'temperature', 'wind', 'humidity', 'current', 'what', 'how',
-      'which', 'city', 'yang', 'cocok', 'untuk', 'dengan', 'dan', 'atau', 'apa', 'mana', 'berikan', 'saran'
+      'which', 'city', 'yang', 'cocok', 'untuk', 'dengan', 'dan', 'atau', 'apa', 'mana', 'berikan', 'saran',
+      'aman', 'selama', 'mendatang', 'berikutnya', 'terbaru', 'terkini', 'tiga', 'three', 'sekitar', 'days'
     ]);
     const cleanTokens = qLower
       .replace(/[?.,!/:;()]/g, ' ')
