@@ -1,0 +1,27 @@
+{
+  "id": "/#dashboard",
+  "name": "SKYVANTA — Portal Meteorologi & Informasi Gempa BMKG",
+  "short_name": "SKYVANTA",
+  "description": "Prakiraan cuaca resmi BMKG dan pemantauan gempa bumi InaTEWS lintas 38 provinsi Indonesia dengan asisten AeroAI.",
+  "start_url": "/#dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#ffffff",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/cerah-berawan.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

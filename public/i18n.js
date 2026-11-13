@@ -375,7 +375,20 @@
       "dyn.depth_short": "Kedalaman",
       "dyn.risk_low": "Rendah",
       "dyn.risk_medium": "Sedang",
-      "dyn.risk_high": "Tinggi"
+      "dyn.risk_high": "Tinggi",
+      "fav.title": "Lokasi Favorit",
+      "fav.add": "Simpan Favorit",
+      "fav.saved": "Tersimpan",
+      "fav.add_aria": "Simpan lokasi ke daftar favorit",
+      "fav.remove_aria": "Hapus {name} dari daftar favorit",
+      "fav.switch_aria": "Buka cuaca untuk {name}",
+      "fav.max_toast": "Maksimal 5 lokasi favorit tersimpan.",
+      "fav.added_toast": "{name} ditambahkan ke favorit.",
+      "fav.removed_toast": "{name} dihapus dari favorit.",
+      "fav.empty": "Belum ada lokasi favorit. Klik ikon bintang di kota aktif untuk menyimpan.",
+      "fav.count": "{n}/5",
+      "pwa.offline_badge": "Mode Offline · Data terakhir diperbarui {time}",
+      "pwa.cached_sync": "Data terakhir diperbarui {time}"
     },
     en: {
       // Navigation & Chrome
@@ -723,7 +736,20 @@
       "dyn.depth_short": "Depth",
       "dyn.risk_low": "Low",
       "dyn.risk_medium": "Moderate",
-      "dyn.risk_high": "High"
+      "dyn.risk_high": "High",
+      "fav.title": "Favorite Locations",
+      "fav.add": "Save Favorite",
+      "fav.saved": "Saved",
+      "fav.add_aria": "Save location to favorites",
+      "fav.remove_aria": "Remove {name} from favorites",
+      "fav.switch_aria": "Load weather for {name}",
+      "fav.max_toast": "Maximum of 5 favorite locations reached.",
+      "fav.added_toast": "{name} added to favorites.",
+      "fav.removed_toast": "{name} removed from favorites.",
+      "fav.empty": "No favorite locations yet. Click the star icon on the active city to save.",
+      "fav.count": "{n}/5",
+      "pwa.offline_badge": "Offline Mode · Last updated {time}",
+      "pwa.cached_sync": "Last updated {time}"
     }
   };
 

@@ -43,7 +43,23 @@ let activeWeatherAbortController = null;
 // Read by: Overview, Dashboard/Detail Cuaca, Dossier, Detail Visual Parametrik,
 // Forecast, Regional, Weather Map, Curah Hujan, and AI Assistant.
 const INITIAL_DEFAULT_ADM4 = "31.71.01.1001";
-const savedInitialAdm4 = (typeof localStorage !== "undefined" && localStorage.getItem("skyvanta_active_adm4")) || INITIAL_DEFAULT_ADM4;
+const STORAGE_UNIT_KEY = "skyvanta_unit";
+const STORAGE_FAVORITES_KEY = "skyvanta_favorites";
+const STORAGE_LAST_SYNC_KEY = "skyvanta_last_sync";
+const MAX_FAVORITES = 5;
+
+function readSavedString(key, fallback) {
+  try {
+    if (typeof localStorage === "undefined") return fallback;
+    const val = localStorage.getItem(key);
+    return val || fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+const savedInitialAdm4 = readSavedString("skyvanta_active_adm4", INITIAL_DEFAULT_ADM4);
+const savedInitialUnit = readSavedString(STORAGE_UNIT_KEY, "C") === "F" ? "F" : "C";
 
 const STATE = {
   currentAdm4: savedInitialAdm4,
@@ -69,7 +85,7 @@ const STATE = {
   mapDetails: {}, // Cache for complete map city details (humidity, wind, rain, risk)
   mapMode: "temp", // 'temp' or 'risk'
   regionalRisks: [],
-  unit: "C", // 'C' or 'F'
+  unit: savedInitialUnit, // 'C' or 'F'
   activeChartTab: "temp", // 'temp', 'rain', 'wind'
   chartInstance: null,
   audioPlaying: false,
@@ -142,6 +158,207 @@ function getWeatherFromLocalCache(adm4) {
   } catch (e) {
     return null;
   }
+}
+
+let offlineBannerState = { active: false, timeStr: "" };
+
+function formatSyncTime(dateInput) {
+  const dt = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(dt.getTime())) return "--:--";
+  const locFmt = typeof window.getLang === "function" && window.getLang() === "en" ? "en-US" : "id-ID";
+  return dt.toLocaleString(locFmt, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function recordLastSyncTimestamp(ts = Date.now()) {
+  try {
+    localStorage.setItem(STORAGE_LAST_SYNC_KEY, new Date(ts).toISOString());
+  } catch (e) {}
+}
+
+function updateOfflineSyncBanner(isOffline, timeInput = null) {
+  offlineBannerState.active = Boolean(isOffline);
+  if (timeInput) {
+    offlineBannerState.timeStr = typeof timeInput === "string" && !timeInput.includes("T")
+      ? timeInput
+      : formatSyncTime(timeInput);
+  } else if (!offlineBannerState.timeStr) {
+    const saved = readSavedString(STORAGE_LAST_SYNC_KEY, "");
+    offlineBannerState.timeStr = saved ? formatSyncTime(saved) : formatSyncTime(Date.now());
+  }
+
+  const banner = document.getElementById("offline-sync-banner");
+  const textEl = document.getElementById("offline-sync-text");
+  if (!banner || !textEl) return;
+
+  if (offlineBannerState.active) {
+    textEl.textContent = _t("pwa.offline_badge", { time: offlineBannerState.timeStr });
+    banner.classList.remove("hidden");
+  } else {
+    banner.classList.add("hidden");
+  }
+}
+
+function getFavoriteLocations() {
+  try {
+    const raw = localStorage.getItem(STORAGE_FAVORITES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, MAX_FAVORITES) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveFavoriteLocations(list) {
+  try {
+    localStorage.setItem(STORAGE_FAVORITES_KEY, JSON.stringify((list || []).slice(0, MAX_FAVORITES)));
+  } catch (e) {}
+}
+
+function isLocationFavorited(adm4) {
+  if (!adm4) return false;
+  return getFavoriteLocations().some((item) => item.adm4 === adm4);
+}
+
+function escapeHtmlAttr(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function renderFavoritesList() {
+  const favorites = getFavoriteLocations();
+  const activeAdm4 = STATE.activeLocation?.adm4 || STATE.currentAdm4;
+  const favorited = isLocationFavorited(activeAdm4);
+
+  const starBtn = document.getElementById("btn-favorite-toggle");
+  const starIcon = document.getElementById("favorite-star-icon");
+  const starLabel = document.getElementById("favorite-toggle-label");
+  if (starBtn) {
+    starBtn.setAttribute("aria-pressed", favorited ? "true" : "false");
+    starBtn.classList.toggle("bg-amber-50", favorited);
+    starBtn.classList.toggle("border-amber-300", favorited);
+    starBtn.classList.toggle("text-amber-800", favorited);
+    starBtn.classList.toggle("bg-white/80", !favorited);
+    starBtn.classList.toggle("border-slate-200/90", !favorited);
+    starBtn.classList.toggle("text-slate-700", !favorited);
+  }
+  if (starIcon) {
+    starIcon.setAttribute("fill", favorited ? "currentColor" : "none");
+    starIcon.classList.toggle("text-amber-500", favorited);
+    starIcon.classList.toggle("text-slate-400", !favorited);
+  }
+  if (starLabel) {
+    starLabel.textContent = _t(favorited ? "fav.saved" : "fav.add");
+  }
+
+  const countBadge = document.getElementById("favorites-count-badge");
+  if (countBadge) {
+    countBadge.textContent = _t("fav.count", { n: favorites.length });
+  }
+
+  const container = document.getElementById("favorites-list-container");
+  if (!container) return;
+
+  if (!favorites.length) {
+    container.innerHTML = `<p class="text-xs text-slate-500 leading-relaxed">${escapeHtmlAttr(_t("fav.empty"))}</p>`;
+    return;
+  }
+
+  container.innerHTML = favorites
+    .map((fav) => {
+      const isActive = fav.adm4 === activeAdm4;
+      const safeName = escapeHtmlAttr(fav.name || fav.adm4);
+      const safeProv = escapeHtmlAttr(fav.provinsi || "");
+      const safeAdm4 = escapeHtmlAttr(fav.adm4);
+      const switchAria = escapeHtmlAttr(_t("fav.switch_aria", { name: fav.name || fav.adm4 }));
+      const removeAria = escapeHtmlAttr(_t("fav.remove_aria", { name: fav.name || fav.adm4 }));
+      return `
+        <div class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border ${isActive ? "bg-sky-50/90 border-sky-200" : "bg-white/65 border-slate-200/70 hover:bg-white"} transition-colors">
+          <button
+            type="button"
+            onclick="changeLocation('${safeAdm4}')"
+            aria-label="${switchAria}"
+            class="flex-1 min-w-0 text-left min-h-[44px] flex flex-col justify-center cursor-pointer"
+          >
+            <span class="text-xs font-bold ${isActive ? "text-sky-800" : "text-slate-800"} truncate block">${safeName}</span>
+            ${safeProv ? `<span class="text-[11px] text-slate-500 truncate block">${safeProv}</span>` : ""}
+          </button>
+          <button
+            type="button"
+            onclick="removeFavoriteLocation('${safeAdm4}')"
+            aria-label="${removeAria}"
+            title="${removeAria}"
+            class="w-11 h-11 flex-shrink-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function toggleFavoriteLocation() {
+  const loc = STATE.activeLocation || {};
+  const adm4 = loc.adm4 || STATE.currentAdm4;
+  if (!adm4) return;
+  const name = loc.name || loc.kotkab || adm4;
+  const list = getFavoriteLocations();
+  const idx = list.findIndex((item) => item.adm4 === adm4);
+
+  if (idx !== -1) {
+    list.splice(idx, 1);
+    saveFavoriteLocations(list);
+    renderFavoritesList();
+    showToast(_t("fav.removed_toast", { name }));
+    return;
+  }
+
+  if (list.length >= MAX_FAVORITES) {
+    showToast(_t("fav.max_toast"));
+    return;
+  }
+
+  list.push({
+    adm4,
+    name,
+    kotkab: loc.kotkab || name,
+    provinsi: loc.provinsi || ""
+  });
+  saveFavoriteLocations(list);
+  renderFavoritesList();
+  showToast(_t("fav.added_toast", { name }));
+}
+
+function removeFavoriteLocation(adm4) {
+  if (!adm4) return;
+  const list = getFavoriteLocations();
+  const target = list.find((item) => item.adm4 === adm4);
+  const next = list.filter((item) => item.adm4 !== adm4);
+  saveFavoriteLocations(next);
+  renderFavoritesList();
+  if (target) {
+    showToast(_t("fav.removed_toast", { name: target.name || adm4 }));
+  }
+}
+
+function syncUnitToggleButton() {
+  const btn = document.getElementById("btn-unit-toggle");
+  if (!btn) return;
+  btn.textContent = `°${STATE.unit}`;
+  btn.setAttribute("aria-pressed", STATE.unit === "F" ? "true" : "false");
 }
 
 function renderHeroErrorState(adm4, errorMsg = "Gagal menghubungi BMKG") {
@@ -442,10 +659,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   initScrollReveal();
   initHeroParallax();
 
-  // Initialize active location titles & pills immediately
+  // Initialize active location titles, unit, favorites & pills immediately
   window.activeLocation = STATE.activeLocation;
+  syncUnitToggleButton();
   syncAllTitles(STATE.activeLocation);
   renderQuickPills();
+  renderFavoritesList();
+
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    updateOfflineSyncBanner(true);
+  }
+  window.addEventListener("offline", () => updateOfflineSyncBanner(true));
+  window.addEventListener("online", () => updateOfflineSyncBanner(false));
 
   // 2. Display smooth BMKG Sync Splash with hard watchdog safety
   showLoading(true, "Sinkronisasi BMKG", "Mengambil data meteorologi resmi...");
@@ -1644,6 +1869,7 @@ function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
     renderRainfallUnavailableState(locName);
     STATE.aiContextLocation = locName;
     renderQuickPills();
+    renderFavoritesList();
     return;
   }
 
@@ -1670,6 +1896,7 @@ function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
   if (typeof renderRainfallChart === "function") renderRainfallChart();
   STATE.aiContextLocation = locName;
   renderQuickPills();
+  renderFavoritesList();
 }
 window.syncAllComponentsToActiveLocation = syncAllComponentsToActiveLocation;
 
@@ -1760,9 +1987,21 @@ async function fetchWeatherData(adm4, forceRefresh = false) {
       : `/api/cuaca?adm4=${encodeURIComponent(adm4)}`;
 
     const res = await fetch(url, { signal: activeWeatherAbortController.signal });
+    const isSwOffline = res.headers.get("X-Skyvanta-Offline") === "1";
+    const swCachedAt = res.headers.get("X-Skyvanta-Cached-At");
     const json = await res.json();
 
     if (json.success && json.current) {
+      if (isSwOffline) {
+        json.fromCache = true;
+        json.isOfflineFallback = true;
+        json.dataStatus = "OFFLINE";
+        const syncTime = swCachedAt || readSavedString(STORAGE_LAST_SYNC_KEY, "");
+        updateOfflineSyncBanner(true, syncTime);
+      } else {
+        recordLastSyncTimestamp(Date.now());
+        updateOfflineSyncBanner(false);
+      }
       STATE.currentData = json;
       STATE.currentAdm4 = adm4;
       if (json.lokasi) {
@@ -1817,7 +2056,9 @@ async function fetchWeatherData(adm4, forceRefresh = false) {
       const cached = localRecord.data;
       cached.fromCache = true;
       cached.isOfflineFallback = true;
-      cached.lastUpdatedFormatted = `${localRecord.savedTimeStr} WIB (Data Tersimpan)`;
+      cached.dataStatus = "OFFLINE";
+      cached.lastUpdatedFormatted = `${localRecord.savedTimeStr} WIB`;
+      updateOfflineSyncBanner(true, localRecord.timestamp || localRecord.savedTimeStr);
 
       STATE.currentData = cached;
       STATE.currentAdm4 = adm4;
@@ -3947,6 +4188,10 @@ function setupAudioControls() {
 // Toggle Temperature Unit
 function toggleTemperatureUnit() {
   STATE.unit = STATE.unit === "C" ? "F" : "C";
+  try {
+    localStorage.setItem(STORAGE_UNIT_KEY, STATE.unit);
+  } catch (e) {}
+  syncUnitToggleButton();
 
   if (STATE.currentData) {
     renderOverviewCard(STATE.currentData, Boolean(STATE.currentData.isUnavailable));
@@ -4775,6 +5020,9 @@ function setupEventListeners() {
   window.detectUserLocation = detectUserLocation;
   window.selectSearchResult = selectSearchResult;
   window.toggleTemperatureUnit = toggleTemperatureUnit;
+  window.toggleFavoriteLocation = toggleFavoriteLocation;
+  window.removeFavoriteLocation = removeFavoriteLocation;
+  window.renderFavoritesList = renderFavoritesList;
   window.toggleAtmosphereFX = toggleAtmosphereFX;
   window.openGempaModal = openGempaModal;
   window.closeGempaModal = closeGempaModal;
@@ -5984,6 +6232,10 @@ window.renderVectorMapPins = renderVectorMapPins;
 window.renderCapitalsQuickList = renderCapitalsQuickList;
 
 document.addEventListener("skyvanta:langchange", () => {
+  if (typeof renderFavoritesList === "function") renderFavoritesList();
+  if (typeof offlineBannerState !== "undefined" && offlineBannerState.active) {
+    updateOfflineSyncBanner(true);
+  }
   if (typeof updateMapLegendContent === "function") updateMapLegendContent();
   if (typeof renderAnalytics === "function") renderAnalytics();
   if (typeof rainfallChartInstance !== "undefined" && rainfallChartInstance && rainfallChartInstance.data?.datasets) {
