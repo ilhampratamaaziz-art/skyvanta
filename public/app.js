@@ -1029,10 +1029,46 @@ function setActiveLocation(adm4, meta = null) {
 }
 window.setActiveLocation = setActiveLocation;
 
+function _t(key, params) {
+  return typeof window.t === "function" ? window.t(key, params) : key;
+}
+
+function _tw(desc) {
+  return typeof window.translateWeatherDesc === "function"
+    ? window.translateWeatherDesc(desc)
+    : desc;
+}
+
+function _locale() {
+  return typeof window.getLang === "function" && window.getLang() === "en"
+    ? "en-US"
+    : "id-ID";
+}
+
+function _windUnit() {
+  return typeof window.getLang === "function" && window.getLang() === "en"
+    ? "km/h"
+    : "km/j";
+}
+
 function syncAllTitles(loc) {
   if (!loc) loc = STATE.activeLocation;
   if (!loc) return;
   const locName = loc.name || loc.kotkab || loc.desa || "Wilayah";
+
+  // Keep header title aligned with active language & active page view
+  const activeView = document.querySelector(".skyvanta-page-view.is-active-view");
+  const activePage = activeView
+    ? activeView.id.replace("view-", "")
+    : (window.location.hash || "#landing").replace("#", "") || "landing";
+  const pageTitleEl = document.getElementById("page-title-display");
+  if (pageTitleEl) {
+    const pKey = `page.${activePage}`;
+    const pTitle = _t(pKey);
+    if (pTitle && pTitle !== pKey) {
+      pageTitleEl.textContent = pTitle;
+    }
+  }
 
   // 1. Overview Card City
   const ovCity = document.getElementById("overview-card-city");
@@ -1043,44 +1079,44 @@ function syncAllTitles(loc) {
   if (heroCity) heroCity.textContent = loc.kotkab || locName;
   const heroSub = document.getElementById("hero-province-subtitle");
   if (heroSub) {
-    heroSub.textContent = `${loc.kecamatan ? loc.kecamatan + ", " : ""}${loc.provinsi || ""} · Kode ADM4: ${loc.adm4 || ""}`;
+    heroSub.textContent = `${loc.kecamatan ? loc.kecamatan + ", " : ""}${loc.provinsi || ""} · ${_t("dyn.code_adm4")}: ${loc.adm4 || ""}`;
   }
   const heroRight = document.getElementById("hero-right-city");
   if (heroRight) heroRight.textContent = locName;
 
   // 3. Dossier Titles
   const dossierTitle = document.getElementById("modal-detail-title");
-  if (dossierTitle) dossierTitle.textContent = `Dossier Cuaca: ${locName}`;
+  if (dossierTitle) dossierTitle.textContent = _t("dyn.dossier_title", { loc: locName });
   const dossierSub = document.getElementById("modal-detail-subtitle");
   if (dossierSub) {
-    dossierSub.textContent = `${loc.kecamatan ? loc.kecamatan + ", " : ""}${loc.provinsi || ""} • Kode ADM4: ${loc.adm4 || ""}`;
+    dossierSub.textContent = `${loc.kecamatan ? loc.kecamatan + ", " : ""}${loc.provinsi || ""} • ${_t("dyn.code_adm4")}: ${loc.adm4 || ""}`;
   }
 
   // 4. Detail Visual Parametrik
   const paramTitle = document.getElementById("parametric-chart-title");
-  if (paramTitle) paramTitle.textContent = `Grafik Analisis Parametrik BMKG - ${locName}`;
+  if (paramTitle) paramTitle.textContent = _t("dyn.param_title", { loc: locName });
 
   // 5. Forecast Titles
   const fcast72 = document.getElementById("forecast-page-title");
-  if (fcast72) fcast72.textContent = `Prakiraan Cuaca 72 Jam Terperinci - ${locName}`;
+  if (fcast72) fcast72.textContent = _t("dyn.fcast72_title", { loc: locName });
   const fcast3d = document.getElementById("forecast-3day-title");
-  if (fcast3d) fcast3d.textContent = `Prakiraan Cuaca 3 Hari - ${locName}`;
+  if (fcast3d) fcast3d.textContent = _t("dyn.fcast3d_title", { loc: locName });
 
   // 6. Regional / Map Titles
   const mapTitle = document.getElementById("map-page-title");
-  if (mapTitle) mapTitle.textContent = `Peta Cuaca Interaktif Indonesia - ${locName}`;
+  if (mapTitle) mapTitle.textContent = _t("dyn.map_title_loc", { loc: locName });
   const mapSub = document.getElementById("map-page-subtitle");
-  if (mapSub) mapSub.textContent = `Lokasi Aktif: ${locName} · 38 Stasiun Meteorologi Ibukota Provinsi`;
+  if (mapSub) mapSub.textContent = _t("dyn.map_sub_loc", { loc: locName });
 
   // 7. Curah Hujan Titles
   const rainTitle = document.getElementById("rainfall-page-title");
-  if (rainTitle) rainTitle.textContent = `Peta Interaktif Curah Hujan Indonesia - ${locName}`;
+  if (rainTitle) rainTitle.textContent = _t("dyn.rain_title_loc", { loc: locName });
   const rainCity = document.getElementById("rainfall-active-city");
   if (rainCity) rainCity.textContent = locName;
 
   // 8. AI Assistant Subtitle & Chips
   const aiSub = document.getElementById("ai-active-subtitle");
-  if (aiSub) aiSub.textContent = `Asisten Meteorologi Cerdas · Lokasi Aktif: ${locName}`;
+  if (aiSub) aiSub.textContent = _t("dyn.ai_sub_loc", { loc: locName });
   updateAIPromptChips(locName);
 
   // 9. Comparison Sync (Titik A always reflects activeLocation)
@@ -1097,13 +1133,32 @@ window.syncAllTitles = syncAllTitles;
 function updateAIPromptChips(locName) {
   const container = document.getElementById("ai-quick-chips");
   if (!container) return;
+  const safeLoc = locName.replace(/'/g, "\\'");
+  const isEn = typeof window.getLang === "function" && window.getLang() === "en";
+  const prompts = isEn
+    ? [
+        `How is the weather in ${safeLoc} right now?`,
+        `Is there rain potential in ${safeLoc} in the next 24 hours?`,
+        `What clothing and activities fit the weather in ${safeLoc}?`,
+        `Compare the weather in ${safeLoc} with other regions.`,
+        `Which Indonesian city has the highest temperature in current BMKG data?`,
+        `What is the latest BMKG earthquake update?`
+      ]
+    : [
+        `Bagaimana cuaca di ${safeLoc} sekarang?`,
+        `Apakah di ${safeLoc} berpotensi hujan dalam 24 jam ke depan?`,
+        `Rekomendasi pakaian dan aktivitas yang pas untuk cuaca di ${safeLoc}?`,
+        `Bandingkan cuaca di ${safeLoc} dengan wilayah lainnya.`,
+        `Kota mana yang memiliki suhu tertinggi berdasarkan data BMKG saat ini?`,
+        `Bagaimana kondisi gempa bumi BMKG terbaru?`
+      ];
   container.innerHTML = `
-    <button onclick="askAIPrompt('Bagaimana cuaca di ${locName.replace(/'/g, "\\'")} sekarang?')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">📍 Cuaca ${locName}</button>
-    <button onclick="askAIPrompt('Apakah di ${locName.replace(/'/g, "\\'")} berpotensi hujan dalam 24 jam ke depan?')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">🌧️ Potensi Hujan</button>
-    <button onclick="askAIPrompt('Rekomendasi pakaian dan aktivitas yang pas untuk cuaca di ${locName.replace(/'/g, "\\'")}?')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">👕 Rekomendasi ${locName}</button>
-    <button onclick="askAIPrompt('Bandingkan cuaca di ${locName.replace(/'/g, "\\'")} dengan wilayah lainnya.')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">⚖️ Komparasi Wilayah</button>
-    <button onclick="askAIPrompt('Kota mana yang memiliki suhu tertinggi berdasarkan data BMKG saat ini?')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">🔥 Suhu Tertinggi RI</button>
-    <button onclick="askAIPrompt('Bagaimana kondisi gempa bumi BMKG terbaru?')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">🚨 Gempa BMKG</button>
+    <button onclick="askAIPrompt('${prompts[0]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_weather", { loc: escapeHtml(locName) })}</button>
+    <button onclick="askAIPrompt('${prompts[1]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_rain")}</button>
+    <button onclick="askAIPrompt('${prompts[2]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_rec", { loc: escapeHtml(locName) })}</button>
+    <button onclick="askAIPrompt('${prompts[3]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_comp")}</button>
+    <button onclick="askAIPrompt('${prompts[4]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_hot")}</button>
+    <button onclick="askAIPrompt('${prompts[5]}')" class="liquid-glass-pill text-[10px] whitespace-nowrap cursor-pointer">${_t("dyn.ai_chip_eq")}</button>
   `;
 }
 window.updateAIPromptChips = updateAIPromptChips;
@@ -1126,10 +1181,10 @@ function renderOverviewCard(data, isUnavailable = false) {
   if (isUnavailable || !data || !data.current || data.isUnavailable) {
     if (badgeEl) {
       badgeEl.className = "text-[10px] text-rose-700 font-mono bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200";
-      badgeEl.textContent = "Data Belum Tersedia";
+      badgeEl.textContent = _t("dyn.status_unavail");
     }
     if (tempEl) tempEl.textContent = "--°" + STATE.unit;
-    if (descEl) descEl.textContent = `Data belum tersedia untuk ${locName}`;
+    if (descEl) descEl.textContent = _t("dyn.unavail_loc", { loc: locName });
     if (iconEl) {
       iconEl.src = "icons/berawan.svg";
       iconEl.alt = "";
@@ -1143,10 +1198,10 @@ function renderOverviewCard(data, isUnavailable = false) {
   const cur = data.current;
   if (badgeEl) {
     badgeEl.className = "text-[10px] text-sky-700 font-mono bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200";
-    badgeEl.textContent = data.fromCache ? "BMKG Tersimpan" : "BMKG Live";
+    badgeEl.textContent = data.fromCache ? _t("landing.card_badge_cache") : _t("landing.card_badge_live");
   }
   if (tempEl) tempEl.textContent = `${formatTemp(cur.t)}°${STATE.unit}`;
-  if (descEl) descEl.textContent = cur.weather_desc || "Cerah Berawan";
+  if (descEl) descEl.textContent = _tw(cur.weather_desc || "Cerah Berawan");
   if (iconEl) {
     const iconSrc = typeof getWeatherIcon === "function"
       ? getWeatherIcon(cur.weather_desc, cur.weather)
@@ -1158,7 +1213,7 @@ function renderOverviewCard(data, isUnavailable = false) {
       this.src = "icons/berawan.svg";
     };
   }
-  if (windEl) windEl.textContent = `${cur.ws || 0} km/j`;
+  if (windEl) windEl.textContent = `${cur.ws || 0} ${_windUnit()}`;
   if (huEl) huEl.textContent = `${cur.hu || 0}%`;
   if (precipEl) precipEl.textContent = `${cur.tp || 0} mm`;
 }
@@ -1170,17 +1225,17 @@ function renderHeroUnavailableState(locName) {
   const rightCity = document.getElementById("hero-right-city");
   if (rightCity) rightCity.textContent = locName;
   const desc = document.getElementById("hero-weather-desc");
-  if (desc) desc.textContent = `Data belum tersedia untuk ${locName}`;
+  if (desc) desc.textContent = _t("dyn.unavail_loc", { loc: locName });
   const descEn = document.getElementById("hero-weather-desc-en");
   if (descEn) descEn.textContent = `Data unavailable for ${locName}`;
   const temp = document.getElementById("hero-temp");
   if (temp) temp.textContent = "--";
   const feels = document.getElementById("hero-feels-like");
-  if (feels) feels.textContent = `Data belum tersedia untuk ${locName}`;
+  if (feels) feels.textContent = _t("dyn.unavail_loc", { loc: locName });
   const range = document.getElementById("hero-temp-range");
-  if (range) range.textContent = "Min --° / Maks --°";
+  if (range) range.textContent = _t("dyn.min_max", { min: "--", max: "--" });
   const wind = document.getElementById("metric-wind-speed");
-  if (wind) wind.textContent = "-- km/j";
+  if (wind) wind.textContent = `-- ${_windUnit()}`;
   const hu = document.getElementById("metric-humidity");
   if (hu) hu.textContent = "--%";
   const precip = document.getElementById("metric-precip");
@@ -1198,34 +1253,34 @@ function renderHeroUnavailableState(locName) {
   const statusEl = document.getElementById("hero-status-pill");
   if (statusEl) {
     statusEl.className = "px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1";
-    statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1 inline-block"></span> Data Belum Tersedia`;
+    statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1 inline-block"></span> ${_t("dyn.status_unavail")}`;
   }
   const narrative = document.getElementById("hero-editorial-narrative");
-  if (narrative) narrative.textContent = `Data prakiraan cuaca resmi BMKG belum tersedia untuk ${locName}.`;
+  if (narrative) narrative.textContent = _t("dyn.unavail_loc", { loc: locName });
   const fRow = document.getElementById("aurora-forecast-row");
-  if (fRow) fRow.innerHTML = `<div class="p-6 text-center text-slate-500 font-medium w-full text-xs">Data belum tersedia untuk ${locName}</div>`;
+  if (fRow) fRow.innerHTML = `<div class="p-6 text-center text-slate-500 font-medium w-full text-xs">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
   const curveCanvas = document.getElementById("aurora-curve-canvas");
   if (curveCanvas) {
     const ctx = curveCanvas.getContext("2d");
     ctx.clearRect(0, 0, curveCanvas.width, curveCanvas.height);
   }
   const insight = document.getElementById("weather-insight-narrative");
-  if (insight) insight.textContent = `Analisis cuaca belum tersedia untuk ${locName}.`;
+  if (insight) insight.textContent = _t("dyn.unavail_insight", { loc: locName });
   const recs = document.getElementById("activity-recommendations-list");
-  if (recs) recs.innerHTML = `<div class="col-span-2 p-4 text-center text-slate-500 font-medium text-xs">Data rekomendasi belum tersedia untuk ${locName}</div>`;
+  if (recs) recs.innerHTML = `<div class="col-span-2 p-4 text-center text-slate-500 font-medium text-xs">${_t("dyn.unavail_rec", { loc: locName })}</div>`;
   const daily = document.getElementById("daily-cards-container");
-  if (daily) daily.innerHTML = `<div class="p-4 text-center text-slate-500 font-medium text-xs">Data belum tersedia untuk ${locName}</div>`;
+  if (daily) daily.innerHTML = `<div class="p-4 text-center text-slate-500 font-medium text-xs">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
 }
 
 function renderDossierUnavailableState(locName) {
   const title = document.getElementById("modal-detail-title");
-  if (title) title.textContent = `Dossier Cuaca: ${locName}`;
+  if (title) title.textContent = _t("dyn.dossier_title", { loc: locName });
   const sub = document.getElementById("modal-detail-subtitle");
-  if (sub) sub.textContent = `${STATE.activeLocation?.provinsi || ""} • Kode ADM4: ${STATE.activeLocation?.adm4 || ""}`;
+  if (sub) sub.textContent = `${STATE.activeLocation?.provinsi || ""} • ${_t("dyn.code_adm4")}: ${STATE.activeLocation?.adm4 || ""}`;
   const metrics = document.getElementById("modal-detail-metrics");
-  if (metrics) metrics.innerHTML = `<div class="col-span-full p-8 text-center text-slate-500 font-medium bg-white/70 rounded-2xl border border-slate-200/80">Data belum tersedia untuk ${locName}</div>`;
+  if (metrics) metrics.innerHTML = `<div class="col-span-full p-8 text-center text-slate-500 font-medium bg-white/70 rounded-2xl border border-slate-200/80">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
   const tbody = document.getElementById("modal-detail-forecast-tbody");
-  if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500 font-medium">Data belum tersedia untuk ${locName}</td></tr>`;
+  if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500 font-medium">${_t("dyn.unavail_loc", { loc: locName })}</td></tr>`;
 }
 
 function renderChartsUnavailableState(locName) {
@@ -1243,7 +1298,7 @@ function renderChartsUnavailableState(locName) {
       ctx.parentElement.style.position = "relative";
       ctx.parentElement.appendChild(placeholder);
     }
-    placeholder.textContent = `Data grafik belum tersedia untuk ${locName}`;
+    placeholder.textContent = _t("dyn.unavail_chart", { loc: locName });
     placeholder.style.display = "flex";
   }
 }
@@ -1251,11 +1306,11 @@ function renderChartsUnavailableState(locName) {
 function renderForecastUnavailableState(locName) {
   const carousel = document.getElementById("hourly-carousel");
   if (carousel) {
-    carousel.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium w-full text-xs">Data belum tersedia untuk ${locName}</div>`;
+    carousel.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium w-full text-xs">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
   }
   const weekly = document.getElementById("weekly-forecast-grid");
   if (weekly) {
-    weekly.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium col-span-full text-xs">Data belum tersedia untuk ${locName}</div>`;
+    weekly.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium col-span-full text-xs">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
   }
 }
 
@@ -1269,7 +1324,7 @@ function renderRainfallUnavailableState(locName) {
   const current = document.getElementById("rainfall-stat-current");
   if (current) current.textContent = "-- mm";
   const status = document.getElementById("rainfall-stat-status");
-  if (status) status.textContent = `Data belum tersedia untuk ${locName}`;
+  if (status) status.textContent = _t("dyn.unavail_loc", { loc: locName });
   const canvas = document.getElementById("rainfall-chart-canvas");
   if (canvas && canvas.parentElement) {
     let placeholder = document.getElementById("rainfall-chart-placeholder");
@@ -1280,7 +1335,7 @@ function renderRainfallUnavailableState(locName) {
       canvas.parentElement.style.position = "relative";
       canvas.parentElement.appendChild(placeholder);
     }
-    placeholder.textContent = `Data curah hujan belum tersedia untuk ${locName}`;
+    placeholder.textContent = _t("dyn.unavail_rain", { loc: locName });
     placeholder.style.display = "flex";
   }
 }
@@ -1377,13 +1432,13 @@ async function refreshWeatherData() {
   if (spinIcon) spinIcon.classList.add("animate-spin");
   if (heroSpinIcon) heroSpinIcon.classList.add("animate-spin");
 
-  showToast("Menghubungi server BMKG untuk sinkronisasi data mutakhir...");
+  showToast(_t("dyn.syncing_bmkg"));
   await fetchWeatherData(STATE.currentAdm4, true);
 
   setTimeout(() => {
     if (spinIcon) spinIcon.classList.remove("animate-spin");
     if (heroSpinIcon) heroSpinIcon.classList.remove("animate-spin");
-    showToast("✓ Data cuaca berhasil diperbarui!");
+    showToast(_t("dyn.refreshed"));
   }, 600);
 }
 
@@ -1532,7 +1587,7 @@ function renderHeroWeather(data) {
 
   const subEl = document.getElementById("hero-province-subtitle");
   if (subEl) {
-    subEl.textContent = `${lokasi.kecamatan || activeLoc.kecamatan ? (lokasi.kecamatan || activeLoc.kecamatan) + ", " : ""}${lokasi.provinsi || activeLoc.provinsi || ""} • Kode ADM4: ${lokasi.adm4 || activeLoc.adm4 || ""}`;
+    subEl.textContent = `${lokasi.kecamatan || activeLoc.kecamatan ? (lokasi.kecamatan || activeLoc.kecamatan) + ", " : ""}${lokasi.provinsi || activeLoc.provinsi || ""} • ${_t("dyn.code_adm4")}: ${lokasi.adm4 || activeLoc.adm4 || ""}`;
   }
   const tempEl = document.getElementById("hero-temp");
   if (tempEl) {
@@ -1546,12 +1601,12 @@ function renderHeroWeather(data) {
   }
   document.getElementById("hero-temp-unit").textContent = `°${STATE.unit}`;
   document.getElementById("hero-feels-like").textContent =
-    `Terasa seperti ${feelsVal}°${STATE.unit}`;
+    `${_t("dyn.feels_like", { val: feelsVal })}${STATE.unit}`;
   document.getElementById("hero-temp-range").textContent =
-    `Min ${minVal}° / Maks ${maxVal}°`;
+    _t("dyn.min_max", { min: minVal, max: maxVal });
 
   document.getElementById("hero-weather-desc").textContent =
-    current.weather_desc || "Berawan";
+    _tw(current.weather_desc || "Berawan");
   document.getElementById("hero-weather-desc-en").textContent =
     current.weather_desc_en || "Cloudy";
 
@@ -1569,11 +1624,12 @@ function renderHeroWeather(data) {
   }
 
   const dateObj = new Date(current.local_datetime || current.datetime);
-  const timeFormatted = dateObj.toLocaleTimeString("id-ID", {
+  const locFmt = _locale();
+  const timeFormatted = dateObj.toLocaleTimeString(locFmt, {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const dateFormatted = dateObj.toLocaleDateString("id-ID", {
+  const dateFormatted = dateObj.toLocaleDateString(locFmt, {
     weekday: "long",
     day: "numeric",
     month: "short",
@@ -1587,8 +1643,8 @@ function renderHeroWeather(data) {
   const lastUpdatedEl = document.getElementById("hero-last-updated");
   if (lastUpdatedEl) {
     lastUpdatedEl.textContent = data.lastUpdatedFormatted
-      ? `Diperbarui: ${data.lastUpdatedFormatted}`
-      : `Diperbarui: ${timeFormatted} ${lokasi.timezone || "WIB"}`;
+      ? _t("dyn.updated_at", { time: data.lastUpdatedFormatted })
+      : _t("dyn.updated_at", { time: `${timeFormatted} ${lokasi.timezone || "WIB"}` });
   }
 
   const statusEl = document.getElementById("hero-status-pill");
@@ -1596,27 +1652,27 @@ function renderHeroWeather(data) {
     const status = data.dataStatus || (data.fromCache ? 'CACHED' : 'LIVE');
     if (status === 'LIVE') {
       statusEl.className = "px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 inline-flex items-center gap-1";
-      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 inline-block"></span> BMKG Live`;
+      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 inline-block"></span> ${_t("dyn.status_live")}`;
     } else if (status === 'CACHED') {
       statusEl.className = "px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200/80 inline-flex items-center gap-1";
-      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-sky-500 mr-1 inline-block"></span> BMKG Terverifikasi`;
+      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-sky-500 mr-1 inline-block"></span> ${_t("dyn.status_cached")}`;
     } else if (status === 'STALE') {
       statusEl.className = "px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 inline-flex items-center gap-1";
-      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1 inline-block"></span> BMKG Riwayat`;
+      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1 inline-block"></span> ${_t("dyn.status_stale")}`;
     } else {
       statusEl.className = "px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200/80 inline-flex items-center gap-1";
-      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1 inline-block"></span> Data Offline`;
+      statusEl.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1 inline-block"></span> ${_t("dyn.status_offline")}`;
     }
   }
 
   document.getElementById("metric-humidity").textContent =
     `${current.hu || 0}%`;
   document.getElementById("metric-dew-point").textContent =
-    `Titik embun ${formatTemp(current.dewPoint)}°`;
+    _t("dyn.dew_point", { val: formatTemp(current.dewPoint) });
 
   const wsKmh = current.ws || 0;
   const wsKnot = Math.round(wsKmh * 0.539957 * 10) / 10;
-  document.getElementById("metric-wind-speed").textContent = `${wsKmh} km/j`;
+  document.getElementById("metric-wind-speed").textContent = `${wsKmh} ${_windUnit()}`;
   document.getElementById("metric-wind-knot").textContent =
     `${wsKnot} kt • ${current.wd || "NW"}`;
 
@@ -1626,35 +1682,35 @@ function renderHeroWeather(data) {
   if (tcc > 20) cloudStatus = "Cerah Berawan";
   if (tcc > 60) cloudStatus = "Berawan";
   if (tcc > 80) cloudStatus = "Sangat Berawan";
-  document.getElementById("metric-clouds-status").textContent = cloudStatus;
+  document.getElementById("metric-clouds-status").textContent = _tw(cloudStatus);
 
   const tp = current.tp || 0;
   document.getElementById("metric-precip").textContent = `${tp} mm`;
   let rainStatus = "Nihil";
-  if (tp > 0 && tp <= 2.5) rainStatus = "Sangat Ringan";
+  if (tp > 0 && tp <= 2.5) rainStatus = "Hujan Sangat Ringan";
   if (tp > 2.5 && tp <= 10) rainStatus = "Hujan Ringan";
   if (tp > 10 && tp <= 20) rainStatus = "Hujan Sedang";
   if (tp > 20) rainStatus = "Hujan Lebat";
-  document.getElementById("metric-precip-status").textContent = rainStatus;
+  document.getElementById("metric-precip-status").textContent = _tw(rainStatus);
 
   const uv = current.uvIndex || 0;
   document.getElementById("metric-uv").textContent = `${uv}`;
-  let uvLabel = "Rendah";
+  let uvLabel = _t("dyn.uv_low");
   let uvColor = "text-emerald-400";
   if (uv >= 3) {
-    uvLabel = "Sedang";
+    uvLabel = _t("dyn.uv_med");
     uvColor = "text-amber-400";
   }
   if (uv >= 6) {
-    uvLabel = "Tinggi";
+    uvLabel = _t("dyn.uv_high");
     uvColor = "text-orange-400";
   }
   if (uv >= 8) {
-    uvLabel = "Sangat Tinggi";
+    uvLabel = _t("dyn.uv_vhigh");
     uvColor = "text-rose-400";
   }
   if (uv >= 11) {
-    uvLabel = "Ekstrem";
+    uvLabel = _t("dyn.uv_ext");
     uvColor = "text-purple-400";
   }
   const uvBadge = document.getElementById("metric-uv-status");
@@ -1675,11 +1731,11 @@ function renderHeroWeather(data) {
   const hrCity = document.getElementById('hero-right-city');
   if (hrCity) hrCity.textContent = lokasi.kotkab || lokasi.desa || 'Indonesia';
   const hrDesc = document.getElementById('hero-right-desc');
-  if (hrDesc) hrDesc.textContent = current.weather_desc || 'Berawan';
+  if (hrDesc) hrDesc.textContent = _tw(current.weather_desc || 'Berawan');
   const hrHu = document.getElementById('hero-right-hu');
   if (hrHu) hrHu.textContent = (current.hu || 0) + '%';
   const hrWs = document.getElementById('hero-right-ws');
-  if (hrWs) hrWs.textContent = wsKmh + ' km/j';
+  if (hrWs) hrWs.textContent = wsKmh + ' ' + _windUnit();
   const hrTcc = document.getElementById('hero-right-tcc');
   if (hrTcc) hrTcc.textContent = (current.tcc || 0) + '%';
   const hrTime = document.getElementById('hero-right-time');
@@ -1708,24 +1764,24 @@ function renderHourlyForecast(data) {
   const locName = loc.name || loc.kotkab || "Wilayah";
 
   if (!data || !data.forecast || !data.forecast.length || data.isUnavailable) {
-    container.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium w-full text-xs">Data belum tersedia untuk ${locName}</div>`;
+    container.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium w-full text-xs">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
     return;
   }
 
   const list = data.forecast || [];
+  const dayNames = [_t("dyn.today"), _t("dyn.tomorrow"), _t("dyn.day_after")];
   container.innerHTML = list
     .map((item, idx) => {
       const d = new Date(item.local_datetime || item.datetime);
-      const hourStr = d.toLocaleTimeString("id-ID", {
+      const hourStr = d.toLocaleTimeString(_locale(), {
         hour: "2-digit",
         minute: "2-digit",
       });
-      const dayNames = ["Hari Ini", "Besok", "Lusa"];
       const dayIndex =
         typeof item.dayIndex === "number"
           ? item.dayIndex
           : Math.min(2, Math.floor(idx / 8));
-      const dayLabel = dayNames[dayIndex] || `Hari ke-${dayIndex + 1}`;
+      const dayLabel = dayNames[dayIndex] || _t("dyn.day_n", { n: dayIndex + 1 });
       const isNow = idx === 0;
       const iconSrc = typeof getWeatherIcon === "function"
         ? getWeatherIcon(item.weather_desc, item.weather)
@@ -1742,12 +1798,12 @@ function renderHourlyForecast(data) {
              class="w-10 h-10 my-1.5 drop-shadow-sm animate-float" />
              
         <span class="text-base font-black text-slate-900">${formatTemp(item.t)}°</span>
-        <span class="text-[10px] text-sky-700 font-semibold truncate max-w-full">${item.weather_desc}</span>
+        <span class="text-[10px] text-sky-700 font-semibold truncate max-w-full">${_tw(item.weather_desc)}</span>
         
         <div class="hourly-meta text-[10px] text-slate-500 font-medium flex items-center justify-center gap-1.5 mt-1">
           <span>RH ${item.hu}%</span>
           <span>·</span>
-          <span>${item.ws} km/j</span>
+          <span>${item.ws} ${_windUnit()}</span>
         </div>
       </div>
     `;
@@ -1763,13 +1819,13 @@ function renderDailyCards(data) {
   const locName = loc.name || loc.kotkab || "Wilayah";
 
   if (!data || !data.days || !data.days.length || data.isUnavailable) {
-    if (container) container.innerHTML = `<div class="p-4 text-center text-slate-500 font-medium text-xs">Data belum tersedia untuk ${locName}</div>`;
-    if (weeklyGrid) weeklyGrid.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium col-span-full text-xs">Data belum tersedia untuk ${locName}</div>`;
+    if (container) container.innerHTML = `<div class="p-4 text-center text-slate-500 font-medium text-xs">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
+    if (weeklyGrid) weeklyGrid.innerHTML = `<div class="p-8 text-center text-slate-500 font-medium col-span-full text-xs">${_t("dyn.unavail_loc", { loc: locName })}</div>`;
     return;
   }
 
   const days = data.days || [];
-  const dayNames = ["Hari Ini", "Besok", "Lusa"];
+  const dayNames = [_t("dyn.today"), _t("dyn.tomorrow"), _t("dyn.day_after")];
 
   // 1. Populate hero side panel summary if container exists (Consistent Dark Glass)
   if (container && days.length) {
@@ -1784,7 +1840,7 @@ function renderDailyCards(data) {
         });
         const midItem = dayArr[Math.floor(dayArr.length / 2)] || dayArr[0];
         const dateObj = new Date(midItem.local_datetime || midItem.datetime);
-        const dateFormatted = dateObj.toLocaleDateString("id-ID", {
+        const dateFormatted = dateObj.toLocaleDateString(_locale(), {
           weekday: "short",
           day: "numeric",
           month: "short",
@@ -1798,12 +1854,12 @@ function renderDailyCards(data) {
           <div class="flex items-center gap-2.5">
             <img src="${iconSrc}" alt="" onerror="this.onerror=null; this.src='icons/berawan.svg'" class="w-8 h-8 drop-shadow object-contain flex-shrink-0" />
             <div>
-              <span class="text-xs font-bold text-slate-900 block">${dayNames[idx] || `Hari ke-${idx + 1}`} <span class="text-[10px] text-slate-500 font-medium">(${dateFormatted})</span></span>
-              <span class="text-[11px] text-sky-700 font-semibold">${midItem.weather_desc || 'Cerah'}</span>
+              <span class="text-xs font-bold text-slate-900 block">${dayNames[idx] || _t("dyn.day_n", { n: idx + 1 })} <span class="text-[10px] text-slate-500 font-medium">(${dateFormatted})</span></span>
+              <span class="text-[11px] text-sky-700 font-semibold">${_tw(midItem.weather_desc || 'Cerah')}</span>
             </div>
           </div>
           <div class="text-right">
-            <span class="text-xs font-black text-slate-900 font-mono">${Math.round(maxT)}° <span class="text-[10px] text-slate-500 font-normal">/ ${Math.round(minT)}°</span></span>
+            <span class="text-xs font-black text-slate-900 font-mono">${Math.round(formatTemp(maxT))}° <span class="text-[10px] text-slate-500 font-normal">/ ${Math.round(formatTemp(minT))}°</span></span>
             <span class="text-[10px] text-sky-700 font-bold block">${rainSum.toFixed(1)} mm</span>
           </div>
         </div>
@@ -1825,7 +1881,7 @@ function renderDailyCards(data) {
         });
         const midItem = dayArr[Math.floor(dayArr.length / 2)] || dayArr[0];
         const dateObj = new Date(midItem.local_datetime || midItem.datetime);
-        const dateFormatted = dateObj.toLocaleDateString("id-ID", {
+        const dateFormatted = dateObj.toLocaleDateString(_locale(), {
           weekday: "long",
           day: "numeric",
           month: "long",
@@ -1839,7 +1895,7 @@ function renderDailyCards(data) {
         <div class="weekly-card ${isToday ? 'today' : ''} p-5 rounded-2xl flex flex-col justify-between transition-all">
           <div class="flex justify-between items-start mb-3">
             <div>
-              <span class="weekly-day-name font-bold text-sm text-slate-900">${dayNames[idx] || `Hari ke-${idx + 1}`}</span>
+              <span class="weekly-day-name font-bold text-sm text-slate-900">${dayNames[idx] || _t("dyn.day_n", { n: idx + 1 })}</span>
               <p class="weekly-date text-xs text-slate-500 mt-0.5">${dateFormatted}</p>
             </div>
             <span class="text-[10px] px-2.5 py-1 rounded-full ${isToday ? 'bg-sky-100 text-sky-800 font-bold border border-sky-200' : 'bg-slate-100 text-slate-600 font-medium border border-slate-200'}">BMKG</span>
@@ -1847,23 +1903,23 @@ function renderDailyCards(data) {
 
           <div class="text-center my-3 py-2 bg-white/60 rounded-xl border border-slate-200/80">
             <img src="${iconSrc}" alt="" onerror="this.onerror=null; this.src='icons/berawan.svg'" class="w-12 h-12 mx-auto drop-shadow-sm object-contain mb-1.5" />
-            <span class="text-xs font-bold text-slate-800 block">${midItem.weather_desc || 'Cerah'}</span>
+            <span class="text-xs font-bold text-slate-800 block">${_tw(midItem.weather_desc || 'Cerah')}</span>
           </div>
 
           <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-200">
             <div class="text-left">
-              <span class="text-[10px] text-slate-500 block font-medium">Suhu Maks</span>
-              <span class="text-sm font-black text-slate-900">${Math.round(maxT)}°</span>
+              <span class="text-[10px] text-slate-500 block font-medium">${_t("dyn.max_temp")}</span>
+              <span class="text-sm font-black text-slate-900">${Math.round(formatTemp(maxT))}°</span>
             </div>
             <div class="text-right">
-              <span class="text-[10px] text-slate-500 block font-medium">Suhu Min</span>
-              <span class="text-sm font-black text-slate-700">${Math.round(minT)}°</span>
+              <span class="text-[10px] text-slate-500 block font-medium">${_t("dyn.min_temp")}</span>
+              <span class="text-sm font-black text-slate-700">${Math.round(formatTemp(minT))}°</span>
             </div>
           </div>
 
           <div class="mt-2 text-[10px] text-slate-500 flex justify-between">
-            <span>Hujan: <strong class="text-sky-700 font-bold">${rainSum.toFixed(1)} mm</strong></span>
-            <span>Awan: <strong class="text-slate-700 font-semibold">${Math.round(midItem.tcc || 0)}%</strong></span>
+            <span>${_t("dyn.rain_lbl")} <strong class="text-sky-700 font-bold">${rainSum.toFixed(1)} mm</strong></span>
+            <span>${_t("dyn.cloud_lbl")} <strong class="text-slate-700 font-semibold">${Math.round(midItem.tcc || 0)}%</strong></span>
           </div>
         </div>
         `;
@@ -1890,7 +1946,7 @@ function renderCharts(data) {
   const forecast = data.forecast || [];
   const labels = forecast.map((f) => {
     const d = new Date(f.local_datetime || f.datetime);
-    return d.toLocaleTimeString("id-ID", {
+    return d.toLocaleTimeString(_locale(), {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -1919,7 +1975,7 @@ function renderCharts(data) {
 
     datasets = [
       {
-        label: `Suhu Aktual (°${STATE.unit})`,
+        label: _t("dyn.chart_temp_actual", { unit: STATE.unit }),
         data: temps,
         borderColor: "#06b6d4",
         backgroundColor: "rgba(6, 182, 212, 0.15)",
@@ -1930,7 +1986,7 @@ function renderCharts(data) {
         pointHoverRadius: 5,
       },
       {
-        label: `Terasa Seperti (°${STATE.unit})`,
+        label: _t("dyn.chart_temp_feels", { unit: STATE.unit }),
         data: feels,
         borderColor: "#3b82f6",
         borderDash: [5, 5],
@@ -1940,7 +1996,7 @@ function renderCharts(data) {
         pointBackgroundColor: "#3b82f6",
       },
       {
-        label: `Titik Embun (°${STATE.unit})`,
+        label: _t("dyn.chart_dew", { unit: STATE.unit }),
         data: dews,
         borderColor: "#10b981",
         borderWidth: 1.5,
@@ -1956,7 +2012,7 @@ function renderCharts(data) {
     datasets = [
       {
         type: "bar",
-        label: "Curah Hujan (mm)",
+        label: _t("dyn.chart_rain"),
         data: rain,
         backgroundColor: "rgba(56, 189, 248, 0.75)",
         borderColor: "#38bdf8",
@@ -1965,7 +2021,7 @@ function renderCharts(data) {
       },
       {
         type: "line",
-        label: "Tutupan Awan (%)",
+        label: _t("dyn.chart_clouds"),
         data: clouds,
         borderColor: "#a855f7",
         backgroundColor: "rgba(168, 85, 247, 0.15)",
@@ -1982,7 +2038,7 @@ function renderCharts(data) {
     datasets = [
       {
         type: "line",
-        label: "Kecepatan Angin (km/jam)",
+        label: _t("dyn.chart_wind"),
         data: wind,
         borderColor: "#f59e0b",
         backgroundColor: "rgba(245, 158, 11, 0.15)",
@@ -1993,7 +2049,7 @@ function renderCharts(data) {
       },
       {
         type: "line",
-        label: "Kelembapan Udara (%)",
+        label: _t("dyn.chart_humidity"),
         data: humidity,
         borderColor: "#14b8a6",
         borderDash: [4, 4],
@@ -2007,7 +2063,7 @@ function renderCharts(data) {
     datasets = [
       {
         type: "line",
-        label: "Indeks Kenyamanan (0-10, hasil hitung)",
+        label: _t("dyn.chart_comfort"),
         data: forecast.map((f) =>
           calculateComfortIndex(f.t, f.hu || 0, f.ws || 0),
         ),
@@ -2212,7 +2268,7 @@ function buildWeatherPinTooltipHtml(city, temp) {
       <div class="weather-pin-tooltip px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap">
         <span class="font-bold text-slate-900">${city.name}</span>
         <span class="text-slate-400 mx-1">·</span>
-        <span class="text-sky-700 font-mono font-bold">${Math.round(temp)}°C</span>
+        <span class="text-sky-700 font-mono font-bold">${formatTemp(temp)}°${STATE.unit}</span>
       </div>
     `;
   }
@@ -2315,6 +2371,7 @@ function updateWeatherLeafletMarkerIcons() {
 function initWeatherLeafletMap() {
   const container = document.getElementById("weather-leaflet-map");
   if (!container || typeof L === "undefined") return;
+  if (container.clientWidth === 0 || container.clientHeight === 0) return;
 
   if (weatherMapInstance) {
     try {
@@ -2326,11 +2383,14 @@ function initWeatherLeafletMap() {
   // Rule 1: Leaflet basemap OpenStreetMap, height: 520px, position: relative
   // Rule 2: Minimum zoom 4, maksimum zoom 10
   weatherMapInstance = L.map("weather-leaflet-map", {
+    center: [-2.5, 118],
+    zoom: 5,
     zoomControl: false,
     attributionControl: true,
     minZoom: 4,
     maxZoom: 10,
     fadeAnimation: true,
+    zoomAnimation: false,
   });
   const zoomCtrl = L.control.zoom({
     position: "topleft",
@@ -2395,6 +2455,11 @@ function initWeatherLeafletMap() {
 function renderVectorMapPins() {
   const container = document.getElementById("weather-leaflet-map");
   if (!container) return;
+
+  if (container.clientWidth === 0 || container.clientHeight === 0) {
+    renderCapitalsQuickList();
+    return;
+  }
 
   if (!weatherMapInstance) {
     initWeatherLeafletMap();
@@ -2474,9 +2539,9 @@ function renderVectorMapPins() {
           <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${tempBadgeBg}">${tempStr}</span>
         </div>
         <div class="mt-2 space-y-1 text-slate-600 text-[11px]">
-          <p><span class="text-slate-400">Provinsi:</span> <span class="font-semibold text-slate-800">${city.prov}</span></p>
-          <p><span class="text-slate-400">Cuaca:</span> <span class="font-bold text-sky-700">${weatherDesc}</span></p>
-          <p><span class="text-slate-400">Stasiun:</span> <span class="font-semibold text-emerald-600">BMKG Aktif</span></p>
+          <p><span class="text-slate-400">${_t("dyn.popup_province")}</span> <span class="font-semibold text-slate-800">${city.prov}</span></p>
+          <p><span class="text-slate-400">${_t("dyn.popup_weather")}</span> <span class="font-bold text-sky-700">${_tw(weatherDesc)}</span></p>
+          <p><span class="text-slate-400">${_t("dyn.popup_station")}</span> <span class="font-semibold text-emerald-600">${_t("dyn.popup_active")}</span></p>
         </div>
       </div>
     `,
@@ -2543,7 +2608,10 @@ function renderCapitalsQuickList() {
 
   const counterEl = document.getElementById("map-station-count");
   if (counterEl) {
-    counterEl.textContent = `${filtered.length} Provinsi (${activeMapRegion === "all" ? "Seluruh RI" : activeMapRegion})`;
+    counterEl.textContent = _t("dyn.map_provinces", {
+      n: filtered.length,
+      region: activeMapRegion === "all" ? _t("dyn.all_ri") : activeMapRegion
+    });
   }
 
   container.innerHTML = filtered
@@ -2667,7 +2735,12 @@ async function preloadMapTemperatures() {
             if (listEl) listEl.textContent = Math.round(item.temp) + "°";
           }
         });
-        if (typeof renderRainfallMapPins === 'function') renderRainfallMapPins();
+        if (
+          typeof renderRainfallMapPins === "function" &&
+          document.getElementById("view-rainfall")?.classList.contains("is-active-view")
+        ) {
+          renderRainfallMapPins();
+        }
         if (typeof renderAuroraSideCities === 'function') renderAuroraSideCities();
         return;
       }
@@ -2924,11 +2997,11 @@ function renderMainEarthquakeCard(g) {
   }
 
   if (potensiEl) {
-    const rawPotensi = g.Potensi || "Tidak berpotensi tsunami";
+    const rawPotensi = g.Potensi || _t("dyn.eq_no_tsunami");
     const isSafe = rawPotensi.toLowerCase().includes("tidak");
     if (isSafe) {
       potensiEl.className = "font-bold text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-block";
-      potensiEl.textContent = rawPotensi;
+      potensiEl.textContent = !g.Potensi ? _t("dyn.eq_no_tsunami") : rawPotensi;
     } else {
       potensiEl.className = "font-bold text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 inline-block";
       potensiEl.textContent = rawPotensi;
@@ -2936,7 +3009,7 @@ function renderMainEarthquakeCard(g) {
   }
 
   if (dirasakanEl) {
-    dirasakanEl.textContent = g.Dirasakan || g.Skala || "Tidak ada laporan dirasakan";
+    dirasakanEl.textContent = g.Dirasakan || g.Skala || _t("dyn.eq_no_felt");
   }
 
   // Shakemap: hide section if URL empty or failed to load
@@ -2956,7 +3029,7 @@ function renderMainEarthquakeCard(g) {
   // Top nav header ticker
   const ticker = document.getElementById("gempa-ticker-text");
   if (ticker) {
-    ticker.innerHTML = `<strong>BMKG GEMPA:</strong> M ${escapeHtml(String(g.Magnitude ?? "--"))} • ${escapeHtml(formatGempaWilayah(g.Wilayah, "--"))} • Kedalaman ${escapeHtml(String(g.Kedalaman ?? "--"))} (${escapeHtml(String(g.Jam ?? "--"))})`;
+    ticker.innerHTML = `<strong>${escapeHtml(_t("dyn.bmkg_gempa"))}</strong> M ${escapeHtml(String(g.Magnitude ?? "--"))} • ${escapeHtml(formatGempaWilayah(g.Wilayah, "--"))} • ${escapeHtml(_t("dyn.depth_short"))} ${escapeHtml(String(g.Kedalaman ?? "--"))} (${escapeHtml(String(g.Jam ?? "--"))})`;
   }
 
   // Sync any legacy dash elements if present
@@ -2969,7 +3042,7 @@ function renderMainEarthquakeCard(g) {
   const dashTime = document.getElementById("dash-gempa-time");
   if (dashTime) dashTime.textContent = `${g.Tanggal || ""} ${g.Jam || ""}`;
   const dashPotensi = document.getElementById("dash-gempa-potensi");
-  if (dashPotensi) dashPotensi.textContent = g.Potensi || "Tidak Berpotensi Tsunami";
+  if (dashPotensi) dashPotensi.textContent = g.Potensi || _t("dyn.eq_no_tsunami");
 }
 
 /**
@@ -2985,11 +3058,11 @@ function renderMainEarthquakeUnavailable() {
   const dirasakanEl = document.getElementById("modal-gempa-dirasakan");
   const shakemapSec = document.getElementById("gempa-shakemap-section");
 
-  if (magEl) magEl.textContent = "Data Belum Tersedia";
+  if (magEl) magEl.textContent = _t("dyn.status_unavail");
   if (depthEl) depthEl.textContent = "--";
-  if (locEl) locEl.textContent = "Data gempa belum tersedia";
+  if (locEl) locEl.textContent = _t("dyn.unavail_eq");
   if (timeEl) timeEl.textContent = "--";
-  if (potensiEl) potensiEl.textContent = "Data gempa belum tersedia";
+  if (potensiEl) potensiEl.textContent = _t("dyn.unavail_eq");
   if (dirasakanEl) dirasakanEl.textContent = "--";
   if (shakemapSec) shakemapSec.style.display = "none";
 }
@@ -3003,7 +3076,7 @@ function renderEarthquakeRecentList(list) {
   if (!container) return;
 
   if (!Array.isArray(list) || list.length === 0) {
-    container.innerHTML = `<div class="p-6 text-center text-slate-500 font-medium text-xs">Daftar gempa belum tersedia</div>`;
+    container.innerHTML = `<div class="p-6 text-center text-slate-500 font-medium text-xs">${_t("dyn.unavail_eq_list")}</div>`;
     return;
   }
 
@@ -3021,9 +3094,9 @@ function renderEarthquakeRecentList(list) {
           <div>
             <h4 class="text-xs font-bold text-slate-900 leading-snug">${escapeHtml(formatGempaWilayah(item.Wilayah, "Episentrum Gempa"))}</h4>
             <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
-              <span>Kedalaman: <strong class="text-slate-700">${item.Kedalaman || "--"}</strong></span>
+              <span>${_t("dyn.popup_depth")} <strong class="text-slate-700">${item.Kedalaman || "--"}</strong></span>
               <span>•</span>
-              <span>Koordinat: <strong class="font-mono text-slate-600">${item.Coordinates || (item.Lintang + ', ' + item.Bujur)}</strong></span>
+              <span>${_t("dyn.popup_coords")} <strong class="font-mono text-slate-600">${item.Coordinates || (item.Lintang + ', ' + item.Bujur)}</strong></span>
             </div>
           </div>
         </div>
@@ -3069,7 +3142,7 @@ function buildEarthquakePopupHtml(item, hexColor) {
       </div>
       <div style="font-weight:700; color:#0F172A; margin-bottom:4px; line-height:1.35;">${wilayahText}</div>
       <div style="font-size:11px; color:#334155; border-top:1px solid #E2E8F0; padding-top:4px;">
-        Kedalaman: <strong>${kedalamanText}</strong>
+        ${escapeHtml(_t("dyn.popup_depth"))} <strong>${kedalamanText}</strong>
       </div>
     </div>
   `;
@@ -3081,6 +3154,7 @@ function buildEarthquakePopupHtml(item, hexColor) {
 function initEarthquakeLeafletMap() {
   const container = document.getElementById("earthquake-leaflet-map");
   if (!container || typeof L === "undefined") return null;
+  if (container.clientWidth === 0 || container.clientHeight === 0) return null;
 
   if (window.earthquakeMap) {
     try {
@@ -3090,11 +3164,14 @@ function initEarthquakeLeafletMap() {
   }
 
   const map = L.map("earthquake-leaflet-map", {
+    center: [-2.5, 118],
+    zoom: 5,
     zoomControl: true,
     attributionControl: true,
     minZoom: 4,
     maxZoom: 12,
     fadeAnimation: true,
+    zoomAnimation: false,
   });
 
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -3104,7 +3181,7 @@ function initEarthquakeLeafletMap() {
   }).addTo(map);
 
   const INDO_BOUNDS = L.latLngBounds([-11, 95], [6, 141]);
-  map.fitBounds(INDO_BOUNDS, { padding: [10, 10] });
+  map.fitBounds(INDO_BOUNDS, { padding: [10, 10], animate: false });
 
   window.earthquakeMap = map;
 
@@ -3112,10 +3189,10 @@ function initEarthquakeLeafletMap() {
     map.invalidateSize();
   } catch (e) {}
   setTimeout(() => {
-    if (window.earthquakeMap === map) {
+    if (window.earthquakeMap === map && container.clientWidth > 0 && container.clientHeight > 0) {
       try {
         map.invalidateSize();
-        map.fitBounds(INDO_BOUNDS, { padding: [10, 10] });
+        map.fitBounds(INDO_BOUNDS, { padding: [10, 10], animate: false });
       } catch (e) {}
     }
   }, 200);
@@ -3222,8 +3299,8 @@ function renderEarthquakeMapPins(mainGempa, recentList) {
 
   if (countEl) {
     countEl.textContent = mappedCount > 0
-      ? `${mappedCount} titik gempa dipetakan`
-      : "Data gempa belum tersedia";
+      ? _t("dyn.eq_mapped", { n: mappedCount })
+      : _t("dyn.unavail_eq");
   }
 }
 
@@ -3337,11 +3414,11 @@ function closeGempaModal() {
 // Geolocation
 function detectUserLocation() {
   if (!navigator.geolocation) {
-    showToast("Browser Anda tidak mendukung geolokasi");
+    showToast(_t("dyn.geo_unsupported"));
     return;
   }
 
-  showToast("Mendeteksi koordinat GPS Anda...");
+  showToast(_t("dyn.geo_detecting"));
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       const { latitude, longitude } = pos.coords;
@@ -3352,18 +3429,18 @@ function detectUserLocation() {
         const json = await res.json();
         if (json.success && json.nearest) {
           showToast(
-            `Lokasi terdekat: ${json.nearest.name} (${json.nearest.distanceKm} km)`,
+            _t("dyn.geo_nearest", { name: json.nearest.name, dist: json.nearest.distanceKm }),
           );
           changeLocation(json.nearest.adm4);
         } else {
-          showToast("Tidak dapat menemukan kota terdekat");
+          showToast(_t("dyn.geo_not_found"));
         }
       } catch (e) {
-        showToast("Gagal mencocokkan koordinat dengan database");
+        showToast(_t("dyn.geo_match_fail"));
       }
     },
     (err) => {
-      showToast("Izin akses lokasi ditolak. Silakan pilih kota manual.");
+      showToast(_t("dyn.geo_denied"));
     },
     { timeout: 10000 },
   );
@@ -3382,7 +3459,7 @@ function changeLocation(adm4, meta = null) {
     };
     STATE.currentAdm4 = null;
     syncAllComponentsToActiveLocation(null, true);
-    showToast(`Data belum tersedia untuk ${activeLoc.name || "wilayah ini"}`);
+    showToast(_t("dyn.unavail_loc", { loc: activeLoc.name || "wilayah ini" }));
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
@@ -3416,8 +3493,8 @@ function setupSearchInput() {
     if (matches.length === 0) {
       dropdown.innerHTML = `
         <div class="p-4 text-xs text-slate-600 text-center font-medium">
-          Lokasi tidak ditemukan.<br/>
-          <span class="text-sky-700 font-semibold">Tekan Enter untuk mencoba kode ADM4 manual.</span>
+          ${_t("dyn.search_not_found")}<br/>
+          <span class="text-sky-700 font-semibold">${_t("dyn.search_adm4_hint")}</span>
         </div>
       `;
       dropdown.classList.remove("hidden");
@@ -3432,8 +3509,8 @@ function setupSearchInput() {
 
     dropdown.innerHTML = `
       <div class="px-3.5 py-2 text-[11px] text-slate-600 font-bold border-b border-slate-200/90 flex justify-between bg-slate-50/90">
-        <span>Hasil Pencarian Lokasi</span>
-        <span class="text-sky-700 font-semibold">${matches.length} Wilayah Ditemukan</span>
+        <span>${_t("dyn.search_header")}</span>
+        <span class="text-sky-700 font-semibold">${_t("dyn.search_found", { n: matches.length })}</span>
       </div>
     ` + matches
       .map(
@@ -3621,7 +3698,9 @@ function formatTemp(celsius) {
 // Loading & Toast Helpers
 let loaderWatchdog = null;
 
-function showLoading(show, title = "Sinkronisasi BMKG", subtext = "Mengambil data meteorologi resmi...") {
+function showLoading(show, title, subtext) {
+  const resolvedTitle = title || _t("dyn.loading_sync");
+  const resolvedSubtext = subtext || _t("dyn.loading_desc");
   const loader = document.getElementById("global-loader");
   if (!loader) return;
 
@@ -3634,8 +3713,8 @@ function showLoading(show, title = "Sinkronisasi BMKG", subtext = "Mengambil dat
     const titleEl = document.getElementById("global-loader-title");
     const subEl = document.getElementById("global-loader-subtext");
     const actionsEl = document.getElementById("global-loader-actions");
-    if (titleEl) titleEl.textContent = title;
-    if (subEl) subEl.textContent = subtext;
+    if (titleEl) titleEl.textContent = resolvedTitle;
+    if (subEl) subEl.textContent = resolvedSubtext;
     if (actionsEl) actionsEl.classList.add("hidden");
 
     loader.classList.remove("hidden");
@@ -3646,7 +3725,7 @@ function showLoading(show, title = "Sinkronisasi BMKG", subtext = "Mengambil dat
     // Watchdog: after 3.5s of loading, show manual continue button
     loaderWatchdog = setTimeout(() => {
       if (loader && !loader.classList.contains("hidden")) {
-        if (subEl) subEl.textContent = "Koneksi BMKG memerlukan waktu lebih lama dari biasanya...";
+        if (subEl) subEl.textContent = _t("dyn.loading_slow");
         if (actionsEl) actionsEl.classList.remove("hidden");
       }
     }, 3500);
@@ -3737,16 +3816,16 @@ function renderSmartAlerts(alerts) {
         <div>
           <div class="flex items-center space-x-2">
             <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${badgeBg}">
-              ${isDanger ? "PERINGATAN CUACA EKSTREM" : "WASPADA CUACA"}
+              ${isDanger ? _t("alerts.extreme_badge") : _t("alerts.warn_badge")}
             </span>
             <h4 class="text-xs sm:text-sm font-bold ${titleColor}">${topAlert.title}</h4>
           </div>
           <p class="text-xs text-slate-200 mt-1 font-medium">${topAlert.message}</p>
-          <p class="text-[11px] text-slate-300 mt-0.5 italic">Mitigasi: ${topAlert.advice}</p>
+          <p class="text-[11px] text-slate-300 mt-0.5 italic">${_t("alerts.mitigation")} ${topAlert.advice}</p>
         </div>
       </div>
       <button onclick="openOfficialAlertsModal()" class="glass-pill px-3 py-1.5 text-xs font-bold text-white hover:bg-white/10 whitespace-nowrap self-end sm:self-center">
-        Lihat Semua Peringatan
+        ${_t("alerts.view_all")}
       </button>
     </div>
   `;
@@ -3817,7 +3896,7 @@ function renderActivityRecommendations(recommendations) {
 
   const list = [
     {
-      name: "Jemur Pakaian",
+      name: _t("dyn.rec_jemur"),
       icon: "jemur",
       data:
         recommendations.jemur || {
@@ -3827,7 +3906,7 @@ function renderActivityRecommendations(recommendations) {
         },
     },
     {
-      name: "Olahraga Outdoor",
+      name: _t("dyn.rec_sport"),
       icon: "olahraga",
       data:
         recommendations.olahraga || {
@@ -3837,7 +3916,7 @@ function renderActivityRecommendations(recommendations) {
         },
     },
     {
-      name: "Berkendara",
+      name: _t("dyn.rec_drive"),
       icon: "berkendara",
       data:
         recommendations.berkendara || {
@@ -3847,7 +3926,7 @@ function renderActivityRecommendations(recommendations) {
         },
     },
     {
-      name: "Proteksi / Payung",
+      name: _t("dyn.rec_umbrella"),
       icon: "payung",
       data:
         recommendations.perlindungan || {
@@ -4102,10 +4181,10 @@ function openOfficialAlertsModal() {
       <div class="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 space-y-1">
         <div class="flex items-center space-x-1.5 text-rose-400 text-xs font-bold">
           <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-          <span>BULETIN SEISMOLOGI & GEOFISIKA BMKG</span>
+          <span>${_t("alerts.seismo_title")}</span>
         </div>
-        <h5 class="text-xs font-bold text-white">Gempa Bumi M ${escapeHtml(String(gempa.Magnitude ?? "--"))} • ${escapeHtml(formatGempaWilayah(gempa.Wilayah, "--"))}</h5>
-        <p class="text-[11px] text-slate-300">Kedalaman ${gempa.Kedalaman} pada ${gempa.Tanggal} ${gempa.Jam}. ${gempa.Potensi || ""}</p>
+        <h5 class="text-xs font-bold text-white">M ${escapeHtml(String(gempa.Magnitude ?? "--"))} • ${escapeHtml(formatGempaWilayah(gempa.Wilayah, "--"))}</h5>
+        <p class="text-[11px] text-slate-300">${escapeHtml(_t("dyn.depth_short"))} ${escapeHtml(String(gempa.Kedalaman ?? "--"))} · ${escapeHtml(String(gempa.Tanggal ?? ""))} ${escapeHtml(String(gempa.Jam ?? ""))}. ${escapeHtml(String(gempa.Potensi || ""))}</p>
       </div>
     `;
   }
@@ -4116,17 +4195,17 @@ function openOfficialAlertsModal() {
         (a) => `
       <div class="p-3 rounded-xl ${a.level === "danger" ? "bg-rose-950/40 border border-rose-500/40" : a.level === "warning" ? "bg-amber-950/40 border border-amber-500/40" : "bg-emerald-950/40 border border-emerald-500/40"} space-y-1">
         <div class="flex items-center space-x-1.5 ${a.level === "danger" ? "text-rose-400" : a.level === "warning" ? "text-amber-400" : "text-emerald-400"} text-xs font-bold">
-          <span>PERINGATAN METEOROLOGI BMKG</span>
+          <span>${_t("alerts.meteo_title")}</span>
         </div>
         <h5 class="text-xs font-bold text-white">${a.title}</h5>
         <p class="text-[11px] text-slate-200">${a.message}</p>
-        <p class="text-[10px] text-slate-400 italic">Mitigasi: ${a.advice}</p>
+        <p class="text-[10px] text-slate-400 italic">${_t("alerts.mitigation")} ${a.advice}</p>
       </div>
     `,
       )
       .join("");
   } else {
-    itemsHtml += `<div class="p-4 text-center text-xs text-slate-400">Tidak ada peringatan cuaca ekstrem aktif untuk saat ini.</div>`;
+    itemsHtml += `<div class="p-4 text-center text-xs text-slate-400">${_t("alerts.none")}</div>`;
   }
 
   container.innerHTML = itemsHtml;
@@ -4296,7 +4375,7 @@ async function handleAISubmit(e) {
       </div>
       <div class="ai-bubble ai-bubble--bot ai-bubble--loading max-w-[86%] px-4 py-3 rounded-2xl rounded-tl-xs text-xs text-slate-700 bg-white/90 backdrop-blur-xl border border-white/95 shadow-md flex items-center gap-2">
         <span class="ai-dot w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
-        <span class="text-slate-600 font-medium">AeroAI menganalisis data meteorologi BMKG…</span>
+        <span class="text-slate-600 font-medium">${_t("dyn.ai_thinking")}</span>
       </div>
     </div>
   `;
@@ -4320,7 +4399,7 @@ async function handleAISubmit(e) {
         </div>
         <div class="ai-bubble ai-bubble--bot max-w-[86%] px-4 py-3.5 rounded-2xl rounded-tl-xs text-xs text-slate-800 bg-white/90 backdrop-blur-xl border border-white/95 shadow-lg leading-relaxed">
           <div class="space-y-1.5 text-slate-800">${formattedReply}</div>
-          <span class="ai-source block text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-200/80 italic">Sumber: Jaringan Stasiun Meteorologi BMKG</span>
+          <span class="ai-source block text-[10px] text-slate-500 mt-2.5 pt-2 border-t border-slate-200/80 italic">${_t("dyn.ai_source")}</span>
         </div>
       </div>
     `;
@@ -4329,7 +4408,7 @@ async function handleAISubmit(e) {
   } catch (err) {
     const loadingEl = document.getElementById(loadingId);
     if (loadingEl) loadingEl.remove();
-    showToast("Gagal menghubungi AI Assistant.");
+    showToast(_t("dyn.ai_err"));
   }
 }
 
@@ -4366,11 +4445,11 @@ function setMapMode(mode) {
   if (mode === "risk") {
     if (btnRisk) btnRisk.classList.add("active");
     if (btnTemp) btnTemp.classList.remove("active");
-    showToast("Peta Risiko Cuaca Ekstrem aktif.");
+    showToast(_t("dyn.map_mode_risk_toast"));
   } else {
     if (btnTemp) btnTemp.classList.add("active");
     if (btnRisk) btnRisk.classList.remove("active");
-    showToast("Peta Suhu Ibukota aktif.");
+    showToast(_t("dyn.map_mode_temp_toast"));
   }
   renderVectorMapPins();
 }
@@ -4838,7 +4917,7 @@ function analyticsDatasets(forecast, tab) {
     return [
       {
         type: "bar",
-        label: "Curah Hujan (mm)",
+        label: _t("dyn.chart_rain"),
         data: forecast.map((f) => f.tp || 0),
         backgroundColor: "rgba(56, 189, 248, 0.65)",
         borderColor: "#38bdf8",
@@ -4847,7 +4926,7 @@ function analyticsDatasets(forecast, tab) {
       },
       {
         type: "line",
-        label: "Tutupan Awan (%)",
+        label: _t("dyn.chart_clouds"),
         data: forecast.map((f) => f.tcc || 0),
         borderColor: "#a855f7",
         backgroundColor: "rgba(168, 85, 247, 0.12)",
@@ -4864,7 +4943,7 @@ function analyticsDatasets(forecast, tab) {
     return [
       {
         type: "line",
-        label: "Kecepatan Angin (km/jam)",
+        label: _t("dyn.chart_wind"),
         data: forecast.map((f) => f.ws || 0),
         borderColor: "#f59e0b",
         backgroundColor: "rgba(245, 158, 11, 0.12)",
@@ -4876,7 +4955,7 @@ function analyticsDatasets(forecast, tab) {
       },
       {
         type: "line",
-        label: "Kelembapan Udara (%)",
+        label: _t("dyn.chart_humidity"),
         data: forecast.map((f) => f.hu || 0),
         borderColor: "#14b8a6",
         borderDash: [4, 4],
@@ -4893,7 +4972,7 @@ function analyticsDatasets(forecast, tab) {
     return [
       {
         type: "line",
-        label: "Indeks Kenyamanan (0-10, hasil hitung)",
+        label: _t("dyn.chart_comfort"),
         data: forecast.map((f) =>
           calculateComfortIndex(f.t, f.hu || 0, f.ws || 0),
         ),
@@ -4911,7 +4990,7 @@ function analyticsDatasets(forecast, tab) {
   return [
     {
       type: "line",
-      label: `Suhu (°${unit})`,
+      label: _t("dyn.chart_temp_actual", { unit }),
       data: forecast.map((f) =>
         unit === "F" ? Math.round(((f.t * 9) / 5 + 32) * 10) / 10 : f.t,
       ),
@@ -4925,7 +5004,7 @@ function analyticsDatasets(forecast, tab) {
     },
     {
       type: "line",
-      label: `Terasa Seperti (°${unit})`,
+      label: _t("dyn.chart_temp_feels", { unit }),
       data: forecast.map((f) =>
         unit === "F" && typeof f.feelsLike === "number"
           ? Math.round(((f.feelsLike * 9) / 5 + 32) * 10) / 10
@@ -4941,7 +5020,7 @@ function analyticsDatasets(forecast, tab) {
     },
     {
       type: "line",
-      label: `Titik Embun (°${unit})`,
+      label: _t("dyn.chart_dew", { unit }),
       data: forecast.map((f) =>
         unit === "F" && typeof f.dewPoint === "number"
           ? Math.round(((f.dewPoint * 9) / 5 + 32) * 10) / 10
@@ -5379,7 +5458,7 @@ function updateMapLegendContent() {
   ) {
     panel.innerHTML = `
       <div class="p-4 text-center bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 shadow-xl">
-        <p class="text-xs font-semibold text-slate-600">Data belum tersedia untuk ${locName}</p>
+        <p class="text-xs font-semibold text-slate-600">${_t("dyn.unavail_loc", { loc: escapeHtml(locName) })}</p>
       </div>
     `;
     return;
@@ -5394,7 +5473,7 @@ function updateMapLegendContent() {
       <div class="flex items-center justify-between border-b border-slate-100 pb-2">
         <span class="font-bold text-slate-800 flex items-center gap-1.5">
           <span class="w-2 h-2 rounded-full bg-sky-500"></span>
-          Legenda Skala Suhu Peta
+          ${_t("dyn.legend_title")}
         </span>
         <button onclick="toggleMapLegend()" class="text-slate-400 hover:text-slate-700 text-sm font-bold leading-none p-1 cursor-pointer">&times;</button>
       </div>
@@ -5402,27 +5481,27 @@ function updateMapLegendContent() {
       <!-- Dynamic Temperature Scale (min and max from received data) -->
       <div>
         <div class="flex justify-between items-center text-[11px] font-mono font-bold text-slate-700 mb-1">
-          <span class="text-sky-700">Min: ${Math.round(minTemp)}°C</span>
-          <span class="text-slate-400 font-normal">Rentang Suhu Terpantau</span>
-          <span class="text-rose-700">Max: ${Math.round(maxTemp)}°C</span>
+          <span class="text-sky-700">Min: ${formatTemp(minTemp)}°${STATE.unit}</span>
+          <span class="text-slate-400 font-normal">${_t("dyn.legend_range")}</span>
+          <span class="text-rose-700">Max: ${formatTemp(maxTemp)}°${STATE.unit}</span>
         </div>
         <div class="h-3 w-full rounded-full bg-gradient-to-r from-sky-400 via-emerald-400 via-amber-400 to-rose-500 shadow-inner"></div>
         <div class="flex justify-between text-[9px] text-slate-500 mt-1 font-medium">
-          <span>Sejuk (&lt; 24°C)</span>
-          <span>Nyaman (24-28°C)</span>
-          <span>Hangat (29-32°C)</span>
-          <span>Terik (&gt; 32°C)</span>
+          <span>${_t("dyn.legend_cool")}</span>
+          <span>${_t("dyn.legend_comfy")}</span>
+          <span>${_t("dyn.legend_warm")}</span>
+          <span>${_t("dyn.legend_hot")}</span>
         </div>
       </div>
 
       <!-- Status / Risk scale -->
       <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-[10px]">
-        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-slate-700 font-medium">Risiko Rendah</span></div>
-        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-slate-700 font-medium">Risiko Sedang</span></div>
-        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span><span class="text-slate-700 font-medium">Risiko Tinggi</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-slate-700 font-medium">${_t("dyn.legend_risk_low")}</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-slate-700 font-medium">${_t("dyn.legend_risk_med")}</span></div>
+        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span><span class="text-slate-700 font-medium">${_t("dyn.legend_risk_high")}</span></div>
       </div>
 
-      <p class="text-[10px] text-slate-400 pt-1 border-t border-slate-100">Klik pin mana saja untuk memuat data meteorologi stasiun BMKG kota tersebut.</p>
+      <p class="text-[10px] text-slate-400 pt-1 border-t border-slate-100">${_t("dyn.legend_hint")}</p>
     </div>
   `;
 }
@@ -5600,4 +5679,20 @@ document.addEventListener("DOMContentLoaded", setupHourlyScrollbarSync);
       });
     }
   });
+
+window.renderMainEarthquakeCard = renderMainEarthquakeCard;
+window.renderEarthquakeRecentList = renderEarthquakeRecentList;
+window.renderEarthquakeMapPins = renderEarthquakeMapPins;
+window.renderVectorMapPins = renderVectorMapPins;
+window.renderCapitalsQuickList = renderCapitalsQuickList;
+
+document.addEventListener("skyvanta:langchange", () => {
+  if (typeof updateMapLegendContent === "function") updateMapLegendContent();
+  if (typeof renderAnalytics === "function") renderAnalytics();
+  if (typeof rainfallChartInstance !== "undefined" && rainfallChartInstance && rainfallChartInstance.data?.datasets) {
+    if (rainfallChartInstance.data.datasets[0]) rainfallChartInstance.data.datasets[0].label = _t("dyn.chart_rain");
+    if (rainfallChartInstance.data.datasets[1]) rainfallChartInstance.data.datasets[1].label = _t("dyn.chart_clouds");
+    rainfallChartInstance.update("none");
+  }
+});
   
