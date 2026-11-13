@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Back cloud -->
+  <path d="M42 36H24a9 9 0 0 1-2-17.8 12 12 0 0 1 22.4-3.2A8.5 8.5 0 0 1 42 36Z" fill="#cbd5e1" opacity="0.65" />
+  <!-- Front cloud -->
+  <path d="M48 50H20a12 12 0 0 1-2.8-23.7 15 15 0 0 1 28.2-4.1A11 11 0 0 1 48 50Z" fill="url(#cloud-b)" stroke="#94a3b8" stroke-width="1.5" />
+  <defs>
+    <linearGradient id="cloud-b" x1="18" y1="22" x2="48" y2="50" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" />
+      <stop offset="1" stop-color="#cbd5e1" />
+    </linearGradient>
+  </defs>
+</svg>

@@ -34,10 +34,34 @@ async function runTests() {
     const nearest = await resNearest.json();
     console.log('✅ NEAREST TO BANDUNG GPS:', nearest.nearest.name, '| Distance:', nearest.nearest.distanceKm + 'km');
 
-    // 6. Static index.html test
+    // 6. Provinsi List
+    const resProv = await fetch('http://localhost:3000/api/provinsi');
+    const provs = await resProv.json();
+    console.log('✅ PROVINSI COUNT:', provs.total, '| Sample:', provs.data[0].name);
+
+    // 7. Regional Risks
+    const resRisiko = await fetch('http://localhost:3000/api/cuaca/risiko');
+    const risiko = await resRisiko.json();
+    console.log('✅ REGIONAL RISKS COUNT:', risiko.data.length, '| Sample:', risiko.data[0].name, '->', risiko.data[0].risk);
+
+    // 8. AI Assistant
+    const resAI = await fetch('http://localhost:3000/api/ai-assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: 'Apakah besok akan hujan di Jakarta?',
+        location: { kotkab: 'Jakarta Pusat' },
+        weatherContext: cuaca,
+        gempaContext: gempa.gempa
+      })
+    });
+    const aiResp = await resAI.json();
+    console.log('✅ AI ASSISTANT REPLY LENGTH:', aiResp.reply.length, '| Preview:', aiResp.reply.slice(0, 60) + '...');
+
+    // 9. Static index.html test
     const resHtml = await fetch('http://localhost:3000/');
     const htmlText = await resHtml.text();
-    console.log('✅ INDEX.HTML SERVED:', htmlText.includes('NUSAWEATHER') ? 'OK (Title found)' : 'Missing Title');
+    console.log('✅ INDEX.HTML SERVED:', htmlText.includes('SKYVANTA') ? 'OK (Title found)' : 'Missing Title');
 
     console.log('\n🎉 ALL FULL STACK SERVER TESTS PASSED PERFECTLY!');
   } catch (err) {
