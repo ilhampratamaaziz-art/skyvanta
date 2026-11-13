@@ -2965,7 +2965,7 @@ function renderEarthquakeRecentList(list) {
             M ${item.Magnitude}
           </span>
           <div>
-            <h5 class="text-xs font-bold text-slate-900 leading-snug">${escapeHtml(item.Wilayah || "Episentrum Gempa")}</h5>
+            <h4 class="text-xs font-bold text-slate-900 leading-snug">${escapeHtml(item.Wilayah || "Episentrum Gempa")}</h4>
             <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 mt-0.5">
               <span>Kedalaman: <strong class="text-slate-700">${item.Kedalaman || "--"}</strong></span>
               <span>•</span>

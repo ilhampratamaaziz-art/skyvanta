@@ -1402,6 +1402,7 @@ a[class*="bg-gradient-to-"].from-sky-500:hover,
   letter-spacing: -0.015em;
 }
 
+#view-landing .grid > .liquid-glass-card h2,
 #view-landing .grid > .liquid-glass-card h3 {
   letter-spacing: -0.015em;
   line-height: 1.3;

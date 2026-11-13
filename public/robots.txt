@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://skyvanta-lemon.vercel.app/sitemap.xml
