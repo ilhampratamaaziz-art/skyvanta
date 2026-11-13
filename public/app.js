@@ -1445,6 +1445,179 @@ function renderAeroAISummaryCard(data, isUnavailable = false) {
     tipEl.classList.remove("hidden");
   }
 }
+function haversineDistanceKm(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function computeRegionalRiskIndex(data, loc) {
+  const isEn = typeof window.getLang === "function" && window.getLang() === "en";
+  if (!data || !data.current || data.isUnavailable) {
+    return { available: false };
+  }
+
+  const slots = [data.current, ...(Array.isArray(data.forecast) ? data.forecast.slice(0, 8) : [])];
+  let maxTp = 0;
+  let maxWs = 0;
+  slots.forEach((s) => {
+    const tp = Number(s?.tp || 0);
+    const ws = Number(s?.ws || 0);
+    if (!Number.isNaN(tp) && tp > maxTp) maxTp = tp;
+    if (!Number.isNaN(ws) && ws > maxWs) maxWs = ws;
+  });
+
+  const rainPts = maxTp >= 10 ? 2 : maxTp > 2.5 ? 1 : 0;
+  const windPts = maxWs >= 35 ? 2 : maxWs >= 20 ? 1 : 0;
+
+  // Nearby earthquake evaluation using real coordinates only
+  const active = loc || STATE.activeLocation || data.lokasi || {};
+  const resolvedMeta = typeof getLocation === "function" && active.adm4 ? getLocation(active.adm4) : null;
+  const locLat = Number(active.lat ?? data.lokasi?.lat ?? resolvedMeta?.lat);
+  const locLon = Number(active.lon ?? data.lokasi?.lon ?? resolvedMeta?.lon);
+  const hasLocCoords = Number.isFinite(locLat) && Number.isFinite(locLon);
+
+  const quakes = [];
+  if (Array.isArray(STATE.gempaList) && STATE.gempaList.length) {
+    quakes.push(...STATE.gempaList);
+  } else if (STATE.gempaData && STATE.gempaData.Magnitude) {
+    quakes.push(STATE.gempaData);
+  }
+
+  let quakePts = 0;
+  let nearestQuake = null;
+  if (hasLocCoords && quakes.length > 0 && typeof parseGempaCoords === "function") {
+    quakes.forEach((q) => {
+      const c = parseGempaCoords(q);
+      if (!c) return;
+      const dist = Math.round(haversineDistanceKm(locLat, locLon, c.lat, c.lon));
+      const mag = parseFloat(q.Magnitude) || 0;
+      if (!nearestQuake || dist < nearestQuake.dist) {
+        nearestQuake = { dist, mag, wilayah: formatGempaWilayah(q.Wilayah, "--") };
+      }
+      if (dist <= 150 && mag >= 5.0) quakePts = Math.max(quakePts, 2);
+      else if (dist <= 300 && mag >= 4.0) quakePts = Math.max(quakePts, 1);
+    });
+  }
+
+  const totalPts = rainPts + windPts + quakePts;
+  let code = "low";
+  if (totalPts >= 3 || rainPts === 2 || windPts === 2 || quakePts === 2) {
+    code = "high";
+  } else if (totalPts >= 1) {
+    code = "medium";
+  }
+
+  const label = code === "high"
+    ? _t("dyn.risk_high")
+    : code === "medium"
+    ? _t("dyn.risk_medium")
+    : _t("dyn.risk_low");
+
+  return {
+    available: true,
+    code,
+    label,
+    maxTp: Math.round(maxTp * 10) / 10,
+    maxWs: Math.round(maxWs * 10) / 10,
+    rainPts,
+    windPts,
+    quakePts,
+    hasLocCoords,
+    nearestQuake,
+    isEn,
+  };
+}
+window.computeRegionalRiskIndex = computeRegionalRiskIndex;
+
+function renderRegionalRiskCard(data, isUnavailable = false) {
+  const badgeEl = document.getElementById("regional-risk-badge");
+  const rainEl = document.getElementById("risk-val-rain");
+  const windEl = document.getElementById("risk-val-wind");
+  const quakeEl = document.getElementById("risk-val-quake");
+  const noteEl = document.getElementById("regional-risk-status-note");
+  const mapPillEl = document.getElementById("map-active-risk-pill");
+
+  const loc = STATE.activeLocation || {};
+  const locName = loc.name || loc.kotkab || "Wilayah";
+  const res = isUnavailable ? { available: false } : computeRegionalRiskIndex(data, loc);
+  const isEn = typeof window.getLang === "function" && window.getLang() === "en";
+
+  if (!res.available) {
+    if (badgeEl) {
+      badgeEl.className = "px-3 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-600 border border-slate-200";
+      badgeEl.textContent = _t("dyn.status_unavail");
+    }
+    if (rainEl) rainEl.textContent = "-- mm";
+    if (windEl) windEl.textContent = `-- ${_windUnit()}`;
+    if (quakeEl) quakeEl.textContent = "--";
+    if (noteEl) noteEl.textContent = _t("dyn.unavail_loc", { loc: locName });
+    if (mapPillEl) {
+      mapPillEl.className = "font-bold text-slate-500";
+      mapPillEl.textContent = _t("dyn.status_unavail");
+    }
+    return;
+  }
+
+  const styleMap = {
+    low: {
+      badge: "px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-200",
+      pill: "font-black text-emerald-700",
+    },
+    medium: {
+      badge: "px-3 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-800 border border-amber-200",
+      pill: "font-black text-amber-700",
+    },
+    high: {
+      badge: "px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-800 border border-rose-200",
+      pill: "font-black text-rose-700",
+    },
+  };
+  const cls = styleMap[res.code] || styleMap.low;
+
+  if (badgeEl) {
+    badgeEl.className = cls.badge;
+    badgeEl.textContent = res.label;
+  }
+  if (rainEl) rainEl.textContent = `${res.maxTp} mm`;
+  if (windEl) windEl.textContent = `${res.maxWs} ${_windUnit()}`;
+  if (quakeEl) {
+    if (!res.hasLocCoords) {
+      quakeEl.textContent = isEn ? "Station coords unavailable" : "Koordinat lokasi belum ada";
+    } else if (!res.nearestQuake) {
+      quakeEl.textContent = isEn ? "Quake data unavailable" : "Data gempa belum dimuat";
+    } else {
+      quakeEl.textContent = `M ${res.nearestQuake.mag} · ${res.nearestQuake.dist} km`;
+    }
+  }
+  if (noteEl) {
+    if (res.code === "high") {
+      noteEl.textContent = isEn
+        ? `Elevated combined hazard index for ${locName} based on loaded BMKG metrics. Follow official BMKG advisories closely.`
+        : `Indeks risiko gabungan untuk ${locName} berada pada tingkat Tinggi dari data BMKG yang dimuat. Pantau arahan resmi BMKG.`;
+    } else if (res.code === "medium") {
+      noteEl.textContent = isEn
+        ? `Moderate hazard signals detected in ${locName}; stay alert for weather or wind changes.`
+        : `Terdapat sinyal kewaspadaan tingkat Sedang di ${locName}; perhatikan perubahan hujan atau angin.`;
+    } else {
+      noteEl.textContent = isEn
+        ? `Loaded rainfall, wind, and nearby seismic thresholds for ${locName} are currently within low risk levels.`
+        : `Ambang hujan, angin, dan gempa sekitar untuk ${locName} saat ini berada pada kategori Rendah.`;
+    }
+  }
+  if (mapPillEl) {
+    mapPillEl.className = cls.pill;
+    mapPillEl.textContent = `${locName} · ${res.label}`;
+  }
+}
+window.renderRegionalRiskCard = renderRegionalRiskCard;
+
 window.renderAeroAISummaryCard = renderAeroAISummaryCard;
 
 let isInitialLocationSync = true;
@@ -1461,6 +1634,7 @@ function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
   if (isUnavailable || !data || !data.current || data.isUnavailable) {
     renderOverviewCard(null, true);
     renderAeroAISummaryCard(null, true);
+    renderRegionalRiskCard(null, true);
     renderHeroUnavailableState(locName);
     renderDossierUnavailableState(locName);
     renderChartsUnavailableState(locName);
@@ -1482,6 +1656,7 @@ function syncAllComponentsToActiveLocation(data, isUnavailable = false) {
   renderOverviewCard(data, false);
   renderHeroWeather(data);
   renderAeroAISummaryCard(data, false);
+  renderRegionalRiskCard(data, false);
   renderSmartAlerts(data.smartAlerts || []);
   renderWeatherInsight(data.weatherInsight, data);
   renderActivityRecommendations(data.weatherInsight?.recommendations || {});
@@ -3156,6 +3331,9 @@ function renderMainEarthquakeCard(g) {
   if (STATE.currentData && typeof renderAeroAISummaryCard === "function") {
     renderAeroAISummaryCard(STATE.currentData, Boolean(STATE.currentData.isUnavailable));
   }
+  if (STATE.currentData && typeof renderRegionalRiskCard === "function") {
+    renderRegionalRiskCard(STATE.currentData, Boolean(STATE.currentData.isUnavailable));
+  }
 }
 
 /**
@@ -3220,6 +3398,10 @@ function renderEarthquakeRecentList(list) {
       </div>
     `;
   }).join("");
+
+  if (STATE.currentData && typeof renderRegionalRiskCard === "function") {
+    renderRegionalRiskCard(STATE.currentData, Boolean(STATE.currentData.isUnavailable));
+  }
 }
 
 /**
