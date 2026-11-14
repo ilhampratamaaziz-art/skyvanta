@@ -2928,24 +2928,50 @@ function buildWeatherPinTooltipHtml(city, temp) {
   `;
 }
 
+function getWeatherMarkerSizes(zoom, isActive, region = activeMapRegion) {
+  const numericZoom = typeof zoom === "number" && !isNaN(zoom) ? zoom : 4;
+  const effectiveZoom = region && region !== "all" ? Math.max(numericZoom, 6) : numericZoom;
+
+  let baseSize;
+  if (effectiveZoom <= 4) {
+    baseSize = 18;
+  } else if (effectiveZoom === 5) {
+    baseSize = 20;
+  } else if (effectiveZoom === 6) {
+    baseSize = 23;
+  } else if (effectiveZoom === 7) {
+    baseSize = 25;
+  } else {
+    baseSize = 26;
+  }
+
+  const circleSize = isActive ? Math.min(34, Math.ceil(baseSize * 1.3)) : baseSize;
+  return { circleSize, anchorCenter: Math.round(circleSize / 2) };
+}
+
 // Rule 3: Pin kota: pakai marker lingkaran kecil berwarna sesuai suhu.
 // Label nama dan suhu hanya tampil saat zoom 6 atau lebih. Di zoom lebih kecil, hanya lingkaran.
 // Rule 7: Pin aktif (lokasi yang dipilih) diberi highlight dengan warna dan ring yang jelas.
-function createLeafletMarkerIcon(city, temp, isActive, isRiskMode, showLabels = false) {
+function createLeafletMarkerIcon(city, temp, isActive, isRiskMode, showLabels = false, zoom = null) {
   const { dotColor, tempBg, tempStr } = getMarkerColors(temp, isRiskMode, city);
   const activeClass = isActive ? "pin-active" : "";
   const pulseRingHtml = isActive
     ? `<span class="circle-ring" aria-hidden="true"></span>`
     : "";
-  const circleSize = isActive ? 34 : 26;
-  const anchorCenter = isActive ? 17 : 13;
+  const resolvedZoom =
+    typeof zoom === "number" && !isNaN(zoom)
+      ? zoom
+      : weatherMapInstance
+        ? weatherMapInstance.getZoom()
+        : 4;
+  const { circleSize, anchorCenter } = getWeatherMarkerSizes(resolvedZoom, isActive, activeMapRegion);
 
   if (!showLabels) {
-    // Zoom < 6: Lingkaran saja (26px, atau 34px aktif dengan cincin berdenyut)
+    // Zoom < 6: Lingkaran saja (bertahap sesuai zoom, ~1.3x untuk aktif dengan cincin berdenyut)
     const html = `
-      <div class="circle-marker-pin ${activeClass}" aria-label="${city.name}">
+      <div class="circle-marker-pin ${activeClass}" aria-label="${city.name}" style="width: ${circleSize}px; height: ${circleSize}px;">
         ${pulseRingHtml}
-        <span class="circle-dot" style="background-color: ${dotColor};"></span>
+        <span class="circle-dot" style="background-color: ${dotColor}; width: ${circleSize}px; height: ${circleSize}px;"></span>
       </div>
     `;
     return L.divIcon({
@@ -2964,9 +2990,9 @@ function createLeafletMarkerIcon(city, temp, isActive, isRiskMode, showLabels = 
 
   const html = `
     <div class="leaflet-city-pin ${labelActiveClass}" aria-label="${city.name}">
-      <span class="circle-marker-pin ${activeClass}">
+      <span class="circle-marker-pin ${activeClass}" style="width: ${circleSize}px; height: ${circleSize}px;">
         ${pulseRingHtml}
-        <span class="circle-dot" style="background-color: ${dotColor};"></span>
+        <span class="circle-dot" style="background-color: ${dotColor}; width: ${circleSize}px; height: ${circleSize}px;"></span>
       </span>
       <span class="leaflet-city-label flex items-center gap-1.5 px-2.5 py-1 bg-white/95 backdrop-blur-md rounded-full border border-slate-200/90 shadow-md whitespace-nowrap">
         <span class="text-[11px] font-bold text-slate-900">${city.name}</span>
@@ -3003,7 +3029,8 @@ function updateWeatherLeafletMarkerIcons() {
         temp,
         isActive,
         STATE.mapMode === "risk",
-        showLabels
+        showLabels,
+        currentZoom
       )
     );
     if (marker.setTooltipContent) {
@@ -3160,7 +3187,8 @@ function renderVectorMapPins() {
       temp,
       isActive,
       STATE.mapMode === "risk",
-      showLabels
+      showLabels,
+      currentZoom
     );
     const marker = L.marker([lat, lon], { icon: icon });
     marker.adm4 = city.adm4;
@@ -3306,7 +3334,8 @@ function highlightActiveMapPin(adm4, shouldFly = true) {
             temp,
             isActive,
             STATE.mapMode === "risk",
-            showLabels
+            showLabels,
+            currentZoom
           )
         );
         if (isActive && marker.setZIndexOffset) {

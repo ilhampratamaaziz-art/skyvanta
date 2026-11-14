@@ -140,6 +140,12 @@ function openCityDetailModalInline() {
   const lok = data.lokasi || loc;
   const forecast = data.forecast || [];
   if (metricsContainer) {
+    const formatCoord = (coord) => {
+      const num = Number(coord);
+      return coord !== undefined && coord !== null && coord !== "" && Number.isFinite(num)
+        ? num.toFixed(4)
+        : "0";
+    };
     const items = [
       { label: "Suhu Udara", val: `${formatTemp(cur.t)}°${STATE.unit}`, sub: `Terasa ${formatTemp(cur.feelsLike)}°` },
       { label: "Kelembapan Relatif", val: `${cur.hu || 0}%`, sub: `Titik embun ${formatTemp(cur.dewPoint)}°` },
@@ -148,13 +154,13 @@ function openCityDetailModalInline() {
       { label: "Tutupan Awan", val: `${cur.tcc || 0}%`, sub: cur.weather_desc || "Berawan" },
       { label: "Indeks Radiasi UV", val: `${cur.uvIndex || 0}`, sub: "Kategori BMKG" },
       { label: "Zona Waktu", val: `${lok.timezone || "WIB"}`, sub: `UTC+${lok.timezone === "WIT" ? 9 : lok.timezone === "WITA" ? 8 : 7}` },
-      { label: "Koordinat GPS", val: `${lok.lat || 0}°, ${lok.lon || 0}°`, sub: "Geografis Resmi" }
+      { label: "Koordinat GPS", val: `${formatCoord(lok.lat)}°, ${formatCoord(lok.lon)}°`, sub: "Geografis Resmi", valStyle: "font-size: 1.1rem; overflow-wrap: anywhere;" }
     ];
 
     metricsContainer.innerHTML = items.map(i => `
       <div class="p-3.5 rounded-2xl bg-white/70 border border-slate-200/80 shadow-sm">
         <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">${i.label}</span>
-        <span class="text-lg font-black text-slate-800 mt-0.5 block">${i.val}</span>
+        <span class="text-lg font-black text-slate-800 mt-0.5 block"${i.valStyle ? ` style="${i.valStyle}"` : ""}>${i.val}</span>
         <span class="text-[10px] text-sky-600 font-semibold block truncate">${i.sub}</span>
       </div>
     `).join("");
