@@ -2236,13 +2236,11 @@ function renderHeroWeather(data) {
   }
   const tempEl = document.getElementById("hero-temp");
   if (tempEl) {
+    tempEl.textContent = tempVal;
     tempEl.classList.add("metric-val-transition", "updating");
     setTimeout(() => {
-      tempEl.textContent = tempVal;
       tempEl.classList.remove("updating");
     }, 120);
-  } else {
-    document.getElementById("hero-temp").textContent = tempVal;
   }
   document.getElementById("hero-temp-unit").textContent = `°${STATE.unit}`;
   document.getElementById("hero-feels-like").textContent =
@@ -3359,7 +3357,7 @@ async function preloadMapTemperatures() {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
         json.data.forEach((item) => {
-          if (item.temp !== undefined && item.temp !== null) {
+          if (!item.isFallback && item.temp !== undefined && item.temp !== null) {
             STATE.mapTemps[item.adm4] = item.temp;
             if (item.weatherDesc)
               STATE.mapWeatherDesc[item.adm4] = item.weatherDesc;
@@ -3384,6 +3382,16 @@ async function preloadMapTemperatures() {
               "list-temp-" + item.adm4.replace(/\./g, "_"),
             );
             if (listEl) listEl.textContent = Math.round(item.temp) + "°";
+          } else {
+            const el = document.getElementById(
+              "map-temp-" + item.adm4.replace(/\./g, "_"),
+            );
+            if (el) el.textContent = "--";
+
+            const listEl = document.getElementById(
+              "list-temp-" + item.adm4.replace(/\./g, "_"),
+            );
+            if (listEl) listEl.textContent = "--";
           }
         });
         if (

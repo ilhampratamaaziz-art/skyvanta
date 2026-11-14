@@ -769,7 +769,7 @@ async function fetchCapitalsSnapshot() {
           const cur = cached.payload.current;
           return { ...cap, temp: cur.t, weatherDesc: cur.weather_desc || 'Cerah Berawan', humidity: cur.hu, windSpeed: cur.ws, windDir: cur.wd || 'Tenggara', precipitation: cur.tp ?? null, tp: cur.tp ?? null, local_datetime: cur.local_datetime || null, cached: true, isFallback: false };
         }
-        return { ...cap, temp: 28, weatherDesc: 'Cerah Berawan', icon: 'icons/cerah-berawan.svg', image: 'icons/cerah-berawan.svg', humidity: 75, windSpeed: 5, windDir: 'Timur', precipitation: 0, isFallback: true };
+        return { ...cap, temp: null, weatherDesc: null, icon: null, image: null, humidity: null, windSpeed: null, windDir: null, precipitation: null, tp: null, isFallback: true, dataUnavailable: true };
       }));
       continue;
     }
@@ -808,15 +808,17 @@ async function fetchCapitalsSnapshot() {
 
         return {
           ...cap,
-          temp: 28,
-          weatherDesc: 'Cerah Berawan',
-          icon: 'icons/cerah-berawan.svg',
-          image: 'icons/cerah-berawan.svg',
-          humidity: 75,
-          windSpeed: 5,
-          windDir: 'Timur',
-          precipitation: 0,
-          isFallback: true
+          temp: null,
+          weatherDesc: null,
+          icon: null,
+          image: null,
+          humidity: null,
+          windSpeed: null,
+          windDir: null,
+          precipitation: null,
+          tp: null,
+          isFallback: true,
+          dataUnavailable: true
         };
       })
     );
@@ -1165,9 +1167,13 @@ function classifyAIIntent(question, history = []) {
   const hasActivity = /\b(aktivitas|kegiatan|olahraga|lari|jogging|jemur|berkendara|wisata|jalan[- ]jalan|outdoor|activities|activity|exercise|jog|laundry|driving|safe\s*for)\b/i.test(q);
   const isNationalScope = /(indonesia|nasional|\b38\b|seluruh|ibukota|across\s*indonesia|available\s*bmkg|kota\s*mana|which\s*city)/i.test(q);
   const isHottestQuery = /(suhu\s*tertinggi|paling\s*panas|terpanas|kota\s*terpanas|hottest|highest\s*temp(?:erature)?|warmest\s*city|peak\s*temp)/i.test(q);
+  const isExplicitOutOfDomain = /\b(presiden|merdeka|kemerdekaan|menteri|pemilu|partai|resep|nasi\s*goreng|masak|memasak|bumbu|dikali|ditambah|dikurangi|dibagi|akar\s*kuadrat|integral|aljabar|matematika|python|javascript|linked\s*list|merge\s*sort|algoritma|coding|source\s*code|recipe|cooking|multiply|square\s*root|president)\b/i.test(q);
+  const hasWeatherDomainKeyword = /\b(cuaca|weather|prakiraan|ramalan|forecast|outlook|suhu|temperatur|temperature|temp|feels\s*like|panas|dingin|sejuk|derajat|warm|hot|cold|cool|hujan|rain|rainy|raining|rainfall|precipitation|presipitasi|gerimis|badai|petir|thunderstorm|angin|wind|windy|gust|kelembapan|kelembaban|lembap|humidity|humid|dew\s*point|titik\s*embun|awan|berawan|cerah|mendung|kabut|udara|langit|cloud|cloudy|clear|overcast|fog|haze|uv|gempa|tsunami|inatews|magnitudo|episentrum|shakemap|guncangan|mmi|earthquake|quake|seismic|tremor|bmkg|iklim|climate|pakaian|baju|jaket|outfit|payung|jas\s*hujan|clothing|clothes|wear|umbrella|raincoat|aktivitas|kegiatan|olahraga|lari|jogging|jemur|berkendara|outdoor|activities|activity|exercise|laundry|driving|banding|kompara|compare|comparison)\b/i.test(q);
 
   let intent = 'general_weather';
-  if (/(gempa|tsunami|inatews|magnitudo|episentrum|shakemap|guncangan|\bmmi\b|earthquake|quake|seismic|tremor)/i.test(q)) {
+  if (isExplicitOutOfDomain && !hasWeatherDomainKeyword) {
+    intent = 'out_of_domain';
+  } else if (/(gempa|tsunami|inatews|magnitudo|episentrum|shakemap|guncangan|\bmmi\b|earthquake|quake|seismic|tremor)/i.test(q)) {
     intent = 'earthquake';
   } else if (isHottestQuery && isNationalScope) {
     intent = 'highest_temp';
@@ -1190,15 +1196,15 @@ function classifyAIIntent(question, history = []) {
     intent = 'temperature';
   } else if (timeScope === '72h' || timeScope === 'tomorrow' || timeScope === 'day_after' || /(prakiraan|ramalan|forecast|outlook)/i.test(q)) {
     intent = 'daily_forecast';
-  } else if (/(cuaca|kondisi|bagaimana|gimana|weather|condition|today|right\s*now|hari\s*ini|sekarang)/i.test(q)) {
+  } else if (/(cuaca|kondisi\s*cuaca|weather|weather\s*condition)/i.test(q) || (hasWeatherDomainKeyword && /(bagaimana|gimana|today|right\s*now|hari\s*ini|sekarang)/i.test(q))) {
     intent = 'current_weather';
   }
 
   let isFollowUp = false;
-  if (Array.isArray(history) && history.length > 0) {
+  if (intent !== 'out_of_domain' && Array.isArray(history) && history.length > 0) {
     const lastEntry = [...history].reverse().find(h => h && (h.intent || h.contextLocation));
-    const isShortFollowUp = q.split(/\s+/).length <= 7 && /\b(kalau|bagaimana|gimana|dan|what\s+about|how\s+about|and)\b/i.test(q);
-    if (isShortFollowUp && (intent === 'general_weather' || intent === 'current_weather' || intent === 'daily_forecast') && lastEntry?.intent && lastEntry.intent !== 'general_weather') {
+    const isShortFollowUp = q.split(/\s+/).length <= 7 && /\b(kalau|bagaimana|gimana|dan|di|what\s+about|how\s+about|and|in)\b/i.test(q);
+    if (isShortFollowUp && (intent === 'general_weather' || intent === 'current_weather' || intent === 'daily_forecast') && lastEntry?.intent && lastEntry.intent !== 'general_weather' && lastEntry.intent !== 'out_of_domain') {
       if (lastEntry.intent !== 'earthquake' && lastEntry.intent !== 'highest_temp') {
         intent = lastEntry.intent;
       }
@@ -1217,7 +1223,8 @@ function classifyAIIntent(question, history = []) {
     intent,
     timeScope,
     wantsBothClothingAndActivity: hasClothing && hasActivity,
-    isFollowUp
+    isFollowUp,
+    hasWeatherDomainKeyword
   };
 }
 
@@ -1362,8 +1369,9 @@ function resolveAITargetLocations({ question, intent, contextLocation, location,
     }
   }
 
-  // 3. Scan fullWilayahIndex only for remaining cleaned tokens if nothing matched yet (supports 83k kelurahan/kota)
-  if (hits.length === 0 && Array.isArray(fullWilayahIndex) && fullWilayahIndex.length > 0) {
+  // 3. Scan fullWilayahIndex only when query has weather/location context and nothing matched yet
+  const canScanFullWilayah = intent !== 'out_of_domain' && /\b(cuaca|suhu|hujan|angin|kelembapan|kelembaban|prakiraan|ramalan|awan|mendung|cerah|pakaian|aktivitas|bandingkan|komparasi|weather|forecast|rain|temp|temperature|wind|humidity|clothing|activity|compare|kecamatan|kelurahan|desa|kabupaten|kota)\b/i.test(qLower);
+  if (canScanFullWilayah && hits.length === 0 && Array.isArray(fullWilayahIndex) && fullWilayahIndex.length > 0) {
     const stopSet = new Set([
       'cuaca', 'prakiraan', 'kondisi', 'suhu', 'hujan', 'potensi', 'peluang', 'curah', 'angin',
       'kelembapan', 'kelembaban', 'pakaian', 'aktivitas', 'rekomendasi', 'bandingkan', 'komparasi',
@@ -1373,7 +1381,9 @@ function resolveAITargetLocations({ question, intent, contextLocation, location,
       'clothing', 'activity', 'activities', 'safe', 'outdoor', 'compare', 'regions', 'other', 'with',
       'between', 'hottest', 'highest', 'temperature', 'wind', 'humidity', 'current', 'what', 'how',
       'which', 'city', 'yang', 'cocok', 'untuk', 'dengan', 'dan', 'atau', 'apa', 'mana', 'berikan', 'saran',
-      'aman', 'selama', 'mendatang', 'berikutnya', 'terbaru', 'terkini', 'tiga', 'three', 'sekitar', 'days'
+      'aman', 'selama', 'mendatang', 'berikutnya', 'terbaru', 'terkini', 'tiga', 'three', 'sekitar', 'days',
+      'siapa', 'presiden', 'pertama', 'republik', 'tahun', 'berapa', 'merdeka', 'tolong', 'buatkan',
+      'resep', 'nasi', 'goreng', 'spesial', 'enak', 'hasil', 'dari', 'dikali', 'ditambah', 'akar', 'kuadrat'
     ]);
     const cleanTokens = qLower
       .replace(/[?.,!/:;()]/g, ' ')
@@ -1722,6 +1732,12 @@ function buildRuleBasedAIReply({ intent, timeScope, wantsBothClothingAndActivity
   const srcLine = isEn ? 'Source: BMKG' : 'Sumber: BMKG';
   const fmtVal = (v, unit) => (v !== null && v !== undefined && Number.isFinite(Number(v)) ? `${v}${unit}` : (isEn ? 'Unavailable' : 'Tidak tersedia'));
 
+  if (intent === 'out_of_domain') {
+    return isEn
+      ? `I am AeroAI, SKYVANTA's meteorological and disaster-preparedness assistant. I can only answer questions related to Indonesian weather, climate forecasts, outdoor activity/clothing recommendations, and BMKG InaTEWS earthquake updates.`
+      : `Maaf, saya adalah AeroAI, asisten meteorologi dan kesiapsiagaan bencana SKYVANTA. Saya hanya dapat menjawab pertanyaan seputar cuaca, prakiraan iklim, rekomendasi aktivitas/pakaian, dan informasi gempa bumi BMKG (InaTEWS) di Indonesia.`;
+  }
+
   if (timeScope === 'past') {
     return isEn
       ? `Historical weather archives (yesterday) are not available via the current BMKG public forecast feed. I can analyze live conditions and up to 3-day forecasts instead.\n\n${srcLine}`
@@ -1976,7 +1992,9 @@ app.post('/api/ai-assistant', async (req, res) => {
 
   try {
     const history = Array.isArray(body.history) ? body.history : [];
-    const { intent, timeScope, wantsBothClothingAndActivity, isFollowUp } = classifyAIIntent(q, history);
+    const classified = classifyAIIntent(q, history);
+    let intent = classified.intent;
+    const { timeScope, wantsBothClothingAndActivity, isFollowUp, hasWeatherDomainKeyword } = classified;
     const resolved = resolveAITargetLocations({
       question: q,
       intent,
@@ -1986,6 +2004,16 @@ app.post('/api/ai-assistant', async (req, res) => {
       history
     });
 
+    if (
+      intent === 'general_weather' &&
+      !hasWeatherDomainKeyword &&
+      !isFollowUp &&
+      resolved.explicitCount === 0 &&
+      !resolved.islandName
+    ) {
+      intent = 'out_of_domain';
+    }
+
     const ctx = {
       islandName: resolved.islandName,
       locations: [],
@@ -1993,7 +2021,9 @@ app.post('/api/ai-assistant', async (req, res) => {
       gempa: null
     };
 
-    if (intent === 'earthquake') {
+    if (intent === 'out_of_domain') {
+      // Do not load weather or earthquake context for out-of-domain queries
+    } else if (intent === 'earthquake') {
       if (gempaCache.data && Date.now() - gempaCache.timestamp < GEMPA_TTL_MS) {
         ctx.gempa = gempaCache.data;
       } else {
@@ -2034,11 +2064,13 @@ app.post('/api/ai-assistant', async (req, res) => {
       );
     }
 
-    const activeContextLocation = resolved.targets[0]?.name || body.contextLocation || null;
+    const activeContextLocation = intent === 'out_of_domain'
+      ? (body.contextLocation || null)
+      : (resolved.targets[0]?.name || body.contextLocation || null);
 
     let reply = null;
     let mode = 'fallback';
-    if (LLM_API_KEY && timeScope !== 'past' && timeScope !== 'beyond_limit' && !resolved.islandName) {
+    if (LLM_API_KEY && intent !== 'out_of_domain' && timeScope !== 'past' && timeScope !== 'beyond_limit' && !resolved.islandName) {
       reply = await callGroqAssistant({
         question: q,
         lang,
