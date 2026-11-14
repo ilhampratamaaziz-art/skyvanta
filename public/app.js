@@ -2871,7 +2871,10 @@ window.destroyWeatherMap = destroyWeatherMap;
 
 function getMarkerColors(temp, isRiskMode, city) {
   const hasTemp = typeof temp === "number" && !isNaN(temp);
-  let tempStr = hasTemp ? Math.round(temp) + "°" : "";
+  const displayTemp = hasTemp
+    ? (typeof formatTemp === "function" ? formatTemp(temp) : Math.round(temp))
+    : null;
+  let tempStr = hasTemp ? displayTemp + "°" : "";
   let dotColor = "#9CA3AF";
   let tempBg = "bg-slate-100 text-slate-600 font-bold";
 
@@ -3180,7 +3183,11 @@ function renderVectorMapPins() {
     const weatherDesc =
       (STATE.mapWeatherDesc && STATE.mapWeatherDesc[city.adm4]) ||
       "Cerah Berawan";
-    const tempStr = temp != null ? Math.round(temp) + "°C" : "--";
+    const displayTemp =
+      temp != null
+        ? (typeof formatTemp === "function" ? formatTemp(temp) : Math.round(temp))
+        : null;
+    const tempStr = displayTemp !== null ? `${displayTemp}°${STATE.unit}` : "--";
     const tempBadgeBg = temp != null && temp >= 33 ? "bg-rose-50 text-rose-800" : (temp != null && temp >= 29 ? "bg-amber-50 text-amber-800" : (temp != null && temp >= 24 ? "bg-emerald-50 text-emerald-800" : "bg-sky-50 text-sky-800"));
 
     const icon = createLeafletMarkerIcon(
@@ -3274,6 +3281,18 @@ function filterMapRegion(region) {
   }
 }
 
+/** Update cached map pin and station list badges using the active temperature unit. */
+function syncMapBadgeTempDom(adm4, tempC) {
+  if (!adm4 || tempC === undefined || tempC === null || isNaN(tempC)) return;
+  const formatted =
+    (typeof formatTemp === "function" ? formatTemp(tempC) : Math.round(tempC)) + "°";
+  const key = adm4.replace(/\./g, "_");
+  ["map-temp-", "list-temp-"].forEach((prefix) => {
+    const badgeEl = document.getElementById(prefix + key);
+    if (badgeEl) badgeEl.textContent = formatted;
+  });
+}
+
 // Render 38 Ibukota Provinsi Quick List Grid
 function renderCapitalsQuickList() {
   const container = document.getElementById("capitals-quick-list");
@@ -3297,7 +3316,9 @@ function renderCapitalsQuickList() {
       const isActive = c.adm4 === STATE.currentAdm4;
       const temp = STATE.mapTemps && STATE.mapTemps[c.adm4];
       const tempStr =
-        temp !== undefined && temp !== null ? Math.round(temp) + "°" : "...";
+        temp !== undefined && temp !== null
+          ? (typeof formatTemp === "function" ? formatTemp(temp) : Math.round(temp)) + "°"
+          : "...";
       const cardId = "capital-card-" + c.adm4.replace(/\./g, "_");
 
       return `
@@ -3403,15 +3424,7 @@ async function preloadMapTemperatures() {
               local_datetime: item.local_datetime || null
             };
 
-            const el = document.getElementById(
-              "map-temp-" + item.adm4.replace(/\./g, "_"),
-            );
-            if (el) el.textContent = Math.round(item.temp) + "°";
-
-            const listEl = document.getElementById(
-              "list-temp-" + item.adm4.replace(/\./g, "_"),
-            );
-            if (listEl) listEl.textContent = Math.round(item.temp) + "°";
+            syncMapBadgeTempDom(item.adm4, item.temp);
           } else {
             const el = document.getElementById(
               "map-temp-" + item.adm4.replace(/\./g, "_"),
@@ -3458,15 +3471,7 @@ async function preloadMapTemperatures() {
             if (json.current.weather_desc) {
               STATE.mapWeatherDesc[city.adm4] = json.current.weather_desc;
             }
-            const el = document.getElementById(
-              "map-temp-" + city.adm4.replace(/\./g, "_"),
-            );
-            if (el) el.textContent = Math.round(json.current.t) + "°";
-
-            const listEl = document.getElementById(
-              "list-temp-" + city.adm4.replace(/\./g, "_"),
-            );
-            if (listEl) listEl.textContent = Math.round(json.current.t) + "°";
+            syncMapBadgeTempDom(city.adm4, json.current.t);
           }
         } catch (err) {}
       }
@@ -4361,6 +4366,37 @@ function setupAudioControls() {
   }
 }
 
+function getActivePageId() {
+  const activeView = document.querySelector(".skyvanta-page-view.is-active-view");
+  if (activeView && activeView.id) {
+    return activeView.id.replace("view-", "");
+  }
+  return (window.location.hash || "").replace("#", "").trim() || "landing";
+}
+
+function rerenderActiveRouteOnToggle(skipIfSynced = false) {
+  const activePage = getActivePageId();
+  if (activePage === "comparison") {
+    if (typeof window.updateComparison === "function") {
+      window.updateComparison({ useCache: true });
+    }
+    return;
+  }
+  if (skipIfSynced && STATE.currentData) return;
+  if (activePage === "dashboard") {
+    if (typeof window.renderAuroraMiniChart === "function") window.renderAuroraMiniChart();
+    if (typeof window.renderAuroraSideCities === "function") window.renderAuroraSideCities();
+  } else if (activePage === "details") {
+    if (typeof window.openCityDetailModalInline === "function") window.openCityDetailModalInline();
+  } else if (activePage === "rainfall") {
+    if (typeof window.renderRainfallChart === "function") window.renderRainfallChart();
+  } else if (activePage === "map") {
+    if (typeof renderVectorMapPins === "function") renderVectorMapPins();
+    if (typeof renderCapitalsQuickList === "function") renderCapitalsQuickList();
+    if (typeof updateMapLegendContent === "function") updateMapLegendContent();
+  }
+}
+
 // Toggle Temperature Unit
 function toggleTemperatureUnit() {
   STATE.unit = STATE.unit === "C" ? "F" : "C";
@@ -4378,6 +4414,7 @@ function toggleTemperatureUnit() {
     renderCharts(STATE.currentData);
     renderClimateIndicators(STATE.currentData);
   }
+  rerenderActiveRouteOnToggle(false);
 }
 
 // Update Dynamic Atmospheric Effects
@@ -6463,5 +6500,6 @@ document.addEventListener("skyvanta:langchange", () => {
     if (rainfallChartInstance.data.datasets[1]) rainfallChartInstance.data.datasets[1].label = _t("dyn.chart_clouds");
     rainfallChartInstance.update("none");
   }
+  rerenderActiveRouteOnToggle(true);
 });
   

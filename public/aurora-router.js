@@ -320,7 +320,7 @@ function renderAuroraSideCities() {
 
   container.innerHTML = keyCities.map(c => {
     const temp = (STATE.mapTemps && STATE.mapTemps[c.adm4] !== undefined)
-      ? Math.round(STATE.mapTemps[c.adm4]) + "°"
+      ? (typeof formatTemp === "function" ? formatTemp(STATE.mapTemps[c.adm4]) : Math.round(STATE.mapTemps[c.adm4])) + "°"
       : "--°";
     const desc = (STATE.mapWeatherDesc && STATE.mapWeatherDesc[c.adm4]) || (typeof _t === "function" ? _t("dyn.loading_sync") : "Sinkronisasi BMKG");
     const iconSrc = typeof getWeatherIcon === 'function' ? getWeatherIcon(desc) : 'icons/berawan.svg';
@@ -1206,7 +1206,7 @@ function renderCompareSideCard(sideLabel, accent, sideResult) {
       <div class="flex items-baseline justify-between py-1">
         <div>
           <span class="text-5xl font-black text-slate-900" style="font-family:'Outfit',sans-serif">${formatTemp(cur.t)}°${STATE.unit}</span>
-          <span class="text-xs font-semibold text-slate-500 block mt-0.5">Terasa seperti ${formatTemp(cur.feelsLike)}°</span>
+          <span class="text-xs font-semibold text-slate-500 block mt-0.5">Terasa seperti ${formatTemp(cur.feelsLike)}°${STATE.unit}</span>
         </div>
         <span class="px-3 py-1 rounded-full text-xs font-bold border ${pillCls}">${cur.weather_desc || "Berawan"}</span>
       </div>
@@ -1233,80 +1233,45 @@ function renderCompareSideCard(sideLabel, accent, sideResult) {
   `;
 }
 
-async function updateComparison() {
-  const selA = document.getElementById("compare-select-a");
-  const selB = document.getElementById("compare-select-b");
-  const resultsContainer = document.getElementById("compare-results-container");
-  const barsContainer = document.getElementById("compare-bars-list");
-  if (!selA || !selB || !resultsContainer) return;
+let lastCompareSides = null;
 
-  const admA = selA.value || currentCompareA;
-  const admB = selB.value || currentCompareB;
-  currentCompareA = admA;
-  currentCompareB = admB;
+function renderComparisonContent(sideA, sideB, resultsContainer, barsContainer) {
+  updateCompareSelectorChip("a", sideA);
+  updateCompareSelectorChip("b", sideB);
 
-  const metaA = getCompareLocationMeta(admA);
-  const metaB = getCompareLocationMeta(admB);
+  resultsContainer.innerHTML =
+    renderCompareSideCard("WILAYAH TITIK A", "sky", sideA) +
+    renderCompareSideCard("WILAYAH TITIK B", "indigo", sideB);
 
-  // Tampilkan nama kota segera dari locationCodes.js
-  const chipAName = document.getElementById("chip-a-name");
-  const chipAProv = document.getElementById("chip-a-prov");
-  const chipBName = document.getElementById("chip-b-name");
-  const chipBProv = document.getElementById("chip-b-prov");
-  if (chipAName) chipAName.textContent = metaA.title;
-  if (chipAProv) chipAProv.textContent = `${metaA.provinsi || ""} · ADM4: ${admA || "-"}`;
-  if (chipBName) chipBName.textContent = metaB.title;
-  if (chipBProv) chipBProv.textContent = `${metaB.provinsi || ""} · ADM4: ${admB || "-"}`;
+  if (!barsContainer) return;
 
-  resultsContainer.innerHTML = `
-    <div class="col-span-2 text-center p-8 text-xs text-sky-700 font-bold animate-pulse bg-white/70 rounded-2xl border border-sky-200">
-      <div class="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin mx-auto mb-2"></div>
-      Mengambil data meteorologi BMKG untuk ${metaA.title} dan ${metaB.title}...
-    </div>
-  `;
+  if (!sideA.available || !sideB.available) {
+    barsContainer.innerHTML = `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 font-medium">Perbandingan metrik tersedia saat kedua wilayah memiliki data BMKG aktif.</div>`;
+    return;
+  }
 
-  try {
-    const verifiedSet = await ensureVerifiedBmkgCodes();
-    const [sideA, sideB] = await Promise.all([
-      fetchCompareSide(admA, verifiedSet),
-      fetchCompareSide(admB, verifiedSet)
-    ]);
+  const curA = sideA.cur;
+  const curB = sideB.cur;
+  const titleA = sideA.meta.title;
+  const titleB = sideB.meta.title;
 
-    updateCompareSelectorChip("a", sideA);
-    updateCompareSelectorChip("b", sideB);
+  const tempA = curA.t || 0;
+  const tempB = curB.t || 0;
+  const diffTempVal = STATE.unit === "F" ? (Math.abs(tempA - tempB) * 9) / 5 : Math.abs(tempA - tempB);
+  const diffTemp = diffTempVal.toFixed(1);
+  const tempVerdict = tempA > tempB
+    ? `${titleA} lebih hangat ${diffTemp}°${STATE.unit}`
+    : (tempA < tempB ? `${titleB} lebih hangat ${diffTemp}°${STATE.unit}` : "Suhu identik");
 
-    resultsContainer.innerHTML =
-      renderCompareSideCard("WILAYAH TITIK A", "sky", sideA) +
-      renderCompareSideCard("WILAYAH TITIK B", "indigo", sideB);
+  const huA = curA.hu || 0;
+  const huB = curB.hu || 0;
+  const diffHu = Math.abs(huA - huB);
+  const wsA = curA.ws || 0;
+  const wsB = curB.ws || 0;
+  const tpA = curA.tp || 0;
+  const tpB = curB.tp || 0;
 
-    if (barsContainer) {
-      if (!sideA.available || !sideB.available) {
-        barsContainer.innerHTML = `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 font-medium">Perbandingan metrik tersedia saat kedua wilayah memiliki data BMKG aktif.</div>`;
-        return;
-      }
-
-      const curA = sideA.cur;
-      const curB = sideB.cur;
-      const titleA = sideA.meta.title;
-      const titleB = sideB.meta.title;
-
-      const tempA = curA.t || 0;
-      const tempB = curB.t || 0;
-      const diffTempVal = STATE.unit === "F" ? (Math.abs(tempA - tempB) * 9) / 5 : Math.abs(tempA - tempB);
-      const diffTemp = diffTempVal.toFixed(1);
-      const tempVerdict = tempA > tempB
-        ? `${titleA} lebih hangat ${diffTemp}°${STATE.unit}`
-        : (tempA < tempB ? `${titleB} lebih hangat ${diffTemp}°${STATE.unit}` : "Suhu identik");
-
-      const huA = curA.hu || 0;
-      const huB = curB.hu || 0;
-      const diffHu = Math.abs(huA - huB);
-      const wsA = curA.ws || 0;
-      const wsB = curB.ws || 0;
-      const tpA = curA.tp || 0;
-      const tpB = curB.tp || 0;
-
-      barsContainer.innerHTML = `
+  barsContainer.innerHTML = `
         <!-- Suhu -->
         <div class="p-3.5 rounded-2xl bg-white/70 border border-slate-200/80 space-y-2">
           <div class="flex justify-between items-center text-xs">
@@ -1381,7 +1346,56 @@ async function updateComparison() {
           </div>
         </div>
       `;
+}
+
+async function updateComparison(options = {}) {
+  const selA = document.getElementById("compare-select-a");
+  const selB = document.getElementById("compare-select-b");
+  const resultsContainer = document.getElementById("compare-results-container");
+  const barsContainer = document.getElementById("compare-bars-list");
+  if (!selA || !selB || !resultsContainer) return;
+
+  const admA = selA.value || currentCompareA;
+  const admB = selB.value || currentCompareB;
+  currentCompareA = admA;
+  currentCompareB = admB;
+
+  if (options && options.useCache && lastCompareSides && lastCompareSides.admA === admA && lastCompareSides.admB === admB) {
+    renderComparisonContent(lastCompareSides.sideA, lastCompareSides.sideB, resultsContainer, barsContainer);
+    return;
+  }
+
+  const metaA = getCompareLocationMeta(admA);
+  const metaB = getCompareLocationMeta(admB);
+
+  // Tampilkan nama kota segera dari locationCodes.js
+  const chipAName = document.getElementById("chip-a-name");
+  const chipAProv = document.getElementById("chip-a-prov");
+  const chipBName = document.getElementById("chip-b-name");
+  const chipBProv = document.getElementById("chip-b-prov");
+  if (chipAName) chipAName.textContent = metaA.title;
+  if (chipAProv) chipAProv.textContent = `${metaA.provinsi || ""} · ADM4: ${admA || "-"}`;
+  if (chipBName) chipBName.textContent = metaB.title;
+  if (chipBProv) chipBProv.textContent = `${metaB.provinsi || ""} · ADM4: ${admB || "-"}`;
+
+  resultsContainer.innerHTML = `
+    <div class="col-span-2 text-center p-8 text-xs text-sky-700 font-bold animate-pulse bg-white/70 rounded-2xl border border-sky-200">
+      <div class="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin mx-auto mb-2"></div>
+      Mengambil data meteorologi BMKG untuk ${metaA.title} dan ${metaB.title}...
+    </div>
+  `;
+
+  try {
+    const verifiedSet = await ensureVerifiedBmkgCodes();
+    const [sideA, sideB] = await Promise.all([
+      fetchCompareSide(admA, verifiedSet),
+      fetchCompareSide(admB, verifiedSet)
+    ]);
+
+    if (sideA.available && sideB.available) {
+      lastCompareSides = { admA, admB, sideA, sideB };
     }
+    renderComparisonContent(sideA, sideB, resultsContainer, barsContainer);
   } catch (err) {
     resultsContainer.innerHTML = `<div class="col-span-2 text-center text-xs text-rose-500 p-6 bg-rose-50 rounded-2xl border border-rose-200">Data belum tersedia</div>`;
   }
