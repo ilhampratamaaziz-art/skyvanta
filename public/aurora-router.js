@@ -321,8 +321,8 @@ function renderAuroraSideCities() {
   container.innerHTML = keyCities.map(c => {
     const temp = (STATE.mapTemps && STATE.mapTemps[c.adm4] !== undefined)
       ? Math.round(STATE.mapTemps[c.adm4]) + "°"
-      : "30°";
-    const desc = (STATE.mapWeatherDesc && STATE.mapWeatherDesc[c.adm4]) || "Cerah Berawan";
+      : "--°";
+    const desc = (STATE.mapWeatherDesc && STATE.mapWeatherDesc[c.adm4]) || (typeof _t === "function" ? _t("dyn.loading_sync") : "Sinkronisasi BMKG");
     const iconSrc = typeof getWeatherIcon === 'function' ? getWeatherIcon(desc) : 'icons/berawan.svg';
 
     return `
@@ -1292,10 +1292,11 @@ async function updateComparison() {
 
       const tempA = curA.t || 0;
       const tempB = curB.t || 0;
-      const diffTemp = Math.abs(tempA - tempB).toFixed(1);
+      const diffTempVal = STATE.unit === "F" ? (Math.abs(tempA - tempB) * 9) / 5 : Math.abs(tempA - tempB);
+      const diffTemp = diffTempVal.toFixed(1);
       const tempVerdict = tempA > tempB
-        ? `${titleA} lebih hangat ${diffTemp}°C`
-        : (tempA < tempB ? `${titleB} lebih hangat ${diffTemp}°C` : "Suhu identik");
+        ? `${titleA} lebih hangat ${diffTemp}°${STATE.unit}`
+        : (tempA < tempB ? `${titleB} lebih hangat ${diffTemp}°${STATE.unit}` : "Suhu identik");
 
       const huA = curA.hu || 0;
       const huB = curB.hu || 0;
@@ -1316,7 +1317,7 @@ async function updateComparison() {
             <div>
               <div class="flex justify-between text-[11px] text-slate-600 mb-1">
                 <span class="font-bold truncate">${titleA}</span>
-                <span class="font-black text-sky-700 font-mono">${formatTemp(tempA)}°C</span>
+                <span class="font-black text-sky-700 font-mono">${formatTemp(tempA)}°${STATE.unit}</span>
               </div>
               <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                 <div class="bg-sky-500 h-full rounded-full" style="width: ${Math.min(100, Math.max(10, (tempA / 45) * 100))}%;"></div>
@@ -1325,7 +1326,7 @@ async function updateComparison() {
             <div>
               <div class="flex justify-between text-[11px] text-slate-600 mb-1">
                 <span class="font-bold truncate">${titleB}</span>
-                <span class="font-black text-indigo-700 font-mono">${formatTemp(tempB)}°C</span>
+                <span class="font-black text-indigo-700 font-mono">${formatTemp(tempB)}°${STATE.unit}</span>
               </div>
               <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                 <div class="bg-indigo-500 h-full rounded-full" style="width: ${Math.min(100, Math.max(10, (tempB / 45) * 100))}%;"></div>

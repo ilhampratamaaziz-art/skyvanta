@@ -1,7 +1,7 @@
 
 function formatMarkdownReply(text) {
   if (!text) return "";
-  let html = text;
+  let html = escapeHtml(String(text));
 
   // Format Markdown tables
   const tableRegex = /\|(.+)\|\n\|[-:| ]+\|\n((?:\|.+\|\n?)+)/g;
@@ -84,6 +84,7 @@ const STATE = {
   mapDetails: {}, // Cache for complete map city details (humidity, wind, rain, risk)
   mapMode: "temp", // 'temp' or 'risk'
   regionalRisks: [],
+  regionalRisksAttribution: "Estimasi SkyVanta, bukan data resmi BMKG",
   unit: savedInitialUnit, // 'C' or 'F'
   activeChartTab: "temp", // 'temp', 'rain', 'wind'
   chartInstance: null,
@@ -4201,9 +4202,17 @@ function setupSearchInput() {
     }
 
     const highlightMatch = (text, query) => {
-      if (!query) return text;
-      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")})`, "gi");
-      return text.replace(regex, '<mark class="bg-sky-100 text-sky-800 font-bold px-1 rounded">$1</mark>');
+      const raw = String(text || "");
+      if (!query) return escapeHtml(raw);
+      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+      return raw
+        .split(regex)
+        .map((part, idx) =>
+          idx % 2 === 1
+            ? `<mark class="bg-sky-100 text-sky-800 font-bold px-1 rounded">${escapeHtml(part)}</mark>`
+            : escapeHtml(part),
+        )
+        .join("");
     };
 
     dropdown.innerHTML = `
@@ -4213,16 +4222,20 @@ function setupSearchInput() {
       </div>
     ` + matches
       .map(
-        (m) => `
-      <div onclick="selectSearchResult('${m.adm4}', '${m.name.replace(/'/g, "\\'")}')" 
+        (m) => {
+          const safeJsAdm4 = escapeHtml(String(m.adm4 || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+          const safeJsName = escapeHtml(String(m.name || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+          return `
+      <div onclick="selectSearchResult('${safeJsAdm4}', '${safeJsName}')" 
            class="p-3 hover:bg-slate-50/90 cursor-pointer flex items-center justify-between border-b border-slate-100 last:border-none transition-colors">
         <div>
           <p class="text-xs font-bold text-slate-900">${highlightMatch(m.name, val)}</p>
           <p class="text-[11px] text-slate-500 font-medium">${highlightMatch(m.provinsi || '', val)} • ${highlightMatch(m.kotkab || '', val)}</p>
         </div>
-        <span class="text-[10px] text-slate-500 font-mono font-semibold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">${m.adm4}</span>
+        <span class="text-[10px] text-slate-500 font-mono font-semibold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">${escapeHtml(String(m.adm4 || ""))}</span>
       </div>
-    `,
+    `;
+        },
       )
       .join("");
 
@@ -5162,6 +5175,9 @@ async function loadRegionalRisks() {
     const json = await res.json();
     if (json.success && json.data) {
       STATE.regionalRisks = json.data;
+      if (json.attribution) {
+        STATE.regionalRisksAttribution = json.attribution;
+      }
     }
   } catch (e) {}
 }
@@ -5174,13 +5190,17 @@ function setMapMode(mode) {
   if (mode === "risk") {
     if (btnRisk) btnRisk.classList.add("active");
     if (btnTemp) btnTemp.classList.remove("active");
-    showToast(_t("dyn.map_mode_risk_toast"));
+    const riskAttr = STATE.regionalRisksAttribution || "Estimasi SkyVanta, bukan data resmi BMKG";
+    showToast(`${_t("dyn.map_mode_risk_toast")} (${riskAttr})`);
   } else {
     if (btnTemp) btnTemp.classList.add("active");
     if (btnRisk) btnRisk.classList.remove("active");
     showToast(_t("dyn.map_mode_temp_toast"));
   }
   renderVectorMapPins();
+  if (typeof updateMapLegendContent === "function") {
+    updateMapLegendContent();
+  }
 }
 
 // 12. Live Clock
@@ -6239,6 +6259,7 @@ function updateMapLegendContent() {
         <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span><span class="text-slate-700 font-medium">${_t("dyn.legend_risk_med")}</span></div>
         <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span><span class="text-slate-700 font-medium">${_t("dyn.legend_risk_high")}</span></div>
       </div>
+      ${STATE.mapMode === "risk" ? `<p class="text-[10px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg px-2 py-1 font-medium">${escapeHtml(STATE.regionalRisksAttribution || "Estimasi SkyVanta, bukan data resmi BMKG")}</p>` : ""}
 
       <p class="text-[10px] text-slate-400 pt-1 border-t border-slate-100">${_t("dyn.legend_hint")}</p>
     </div>

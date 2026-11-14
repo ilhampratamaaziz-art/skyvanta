@@ -953,7 +953,7 @@ app.get('/api/cuaca/risiko', (req, res) => {
     { name: 'Maluku', risk: 'Rendah', color: 'emerald', desc: 'Perairan tenang, cuaca berawan kondusif' },
     { name: 'Papua', risk: 'Tinggi', color: 'rose', desc: 'Waspada potensi hujan lebat di kawasan pegunungan' }
   ];
-  return res.json({ success: true, data: regions, attribution: 'BMKG' });
+  return res.json({ success: true, data: regions, attribution: 'Estimasi SkyVanta, bukan data resmi BMKG' });
 });
 
 
